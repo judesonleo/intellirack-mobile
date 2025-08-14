@@ -7,6 +7,7 @@ import {
 	Modal,
 	ScrollView,
 	Alert,
+	Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +23,54 @@ export default function ExportShoppingListModal({
 	const [exporting, setExporting] = useState(false);
 	const [exportSuccess, setExportSuccess] = useState(false);
 
+	// Helper function to sanitize corrupted item names
+	const sanitizeItemName = (name) => {
+		if (!name || typeof name !== "string") return null;
+
+		// Remove or replace corrupted characters
+		let sanitized = name
+			.replace(/[^\x20-\x7E]/g, "") // Remove non-printable ASCII characters
+			.replace(/[^\w\s\-\.]/g, "") // Remove special characters except spaces, hyphens, dots
+			.trim();
+
+		// If name is too short or corrupted, try to extract meaningful parts
+		if (sanitized.length < 2) {
+			// Try to find any readable text in the original name
+			const readable = name.match(/[a-zA-Z0-9\s]+/g);
+			if (readable && readable.length > 0) {
+				sanitized = readable.join(" ").trim();
+			}
+		}
+
+		return sanitized.length > 0 ? sanitized : null;
+	};
+
+	// Debug logging
+	useEffect(() => {
+		console.log("ExportShoppingListModal - Platform:", Platform.OS);
+		console.log("ExportShoppingListModal - shoppingList:", shoppingList);
+		console.log(
+			"ExportShoppingListModal - shoppingList length:",
+			shoppingList?.length
+		);
+		console.log(
+			"ExportShoppingListModal - shoppingList type:",
+			typeof shoppingList
+		);
+		console.log(
+			"ExportShoppingListModal - Is Array:",
+			Array.isArray(shoppingList)
+		);
+
+		if (shoppingList && shoppingList.length > 0) {
+			console.log("ExportShoppingListModal - First item:", shoppingList[0]);
+			console.log(
+				"ExportShoppingListModal - Item properties:",
+				Object.keys(shoppingList[0])
+			);
+		}
+	}, [shoppingList]);
+
 	// Reset state when modal opens
 	useEffect(() => {
 		if (visible) {
@@ -35,21 +84,30 @@ export default function ExportShoppingListModal({
 			id: "text",
 			name: "Plain Text",
 			icon: "📄",
-			description: "Simple text format",
+			description: "Simple text format - Best for most apps",
+			recommended: true,
 		},
 		{
 			id: "markdown",
 			name: "Markdown",
 			icon: "📝",
 			description: "Rich text with formatting",
+			recommended: false,
 		},
 		{
 			id: "csv",
 			name: "CSV",
 			icon: "📊",
 			description: "Spreadsheet compatible",
+			recommended: false,
 		},
-		{ id: "json", name: "JSON", icon: "🔧", description: "Developer friendly" },
+		{
+			id: "json",
+			name: "JSON",
+			icon: "🔧",
+			description: "Developer friendly",
+			recommended: false,
+		},
 	];
 
 	const apps = [
@@ -201,6 +259,11 @@ export default function ExportShoppingListModal({
 											shoppingList.length === 1 ? "" : "s"
 									  } ready to export`}
 							</Text>
+							{shoppingList.length > 0 && (
+								<Text style={styles.headerNote}>
+									📤 Will open system share sheet for app selection
+								</Text>
+							)}
 						</View>
 						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
 							<Ionicons name="close" size={24} color="#6b7280" />
@@ -211,6 +274,28 @@ export default function ExportShoppingListModal({
 						style={styles.content}
 						showsVerticalScrollIndicator={false}
 					>
+						{/* Data Debug - Remove in production */}
+						<View style={styles.debugInfo}>
+							<Text style={styles.debugText}>
+								🔍 Debug Info: Modal received shoppingList
+							</Text>
+							<Text style={styles.debugText}>
+								Platform: {Platform.OS} (Expo)
+							</Text>
+							<Text style={styles.debugText}>
+								Length: {shoppingList?.length || 0}
+							</Text>
+							<Text style={styles.debugText}>
+								Type:{" "}
+								{Array.isArray(shoppingList) ? "Array" : typeof shoppingList}
+							</Text>
+							{shoppingList && shoppingList.length > 0 && (
+								<Text style={styles.debugText}>
+									First item keys: {Object.keys(shoppingList[0]).join(", ")}
+								</Text>
+							)}
+						</View>
+
 						{/* Empty List Warning */}
 						{shoppingList.length === 0 && (
 							<View style={styles.emptyWarning}>
@@ -235,22 +320,45 @@ export default function ExportShoppingListModal({
 						{/* Shopping List Preview */}
 						{shoppingList.length > 0 && (
 							<View style={styles.section}>
-								<Text style={styles.sectionTitle}>Items to Export</Text>
+								<Text style={styles.sectionTitle}>
+									📋 Items to Export ({shoppingList.length})
+								</Text>
 								<Text style={styles.sectionDescription}>
 									Preview of items that will be exported
 								</Text>
+
+								{/* Debug Info - Remove in production */}
+								<View style={styles.debugInfo}>
+									<Text style={styles.debugText}>
+										Debug: shoppingList data structure
+									</Text>
+									<Text style={styles.debugText}>
+										First item: {JSON.stringify(shoppingList[0], null, 2)}
+									</Text>
+								</View>
+
 								<View style={styles.previewList}>
 									{shoppingList.slice(0, 5).map((item, index) => (
 										<View key={index} style={styles.previewItem}>
-											<Text style={styles.previewItemName}>{item.name}</Text>
+											<Text style={styles.previewItemName}>
+												{index + 1}.{" "}
+												{sanitizeItemName(item.name) ||
+													sanitizeItemName(item.itemName) ||
+													sanitizeItemName(item.title) ||
+													"Unknown Item"}
+											</Text>
 											<View style={styles.previewItemMeta}>
 												<Text style={styles.previewItemQuantity}>
-													Qty: {item.quantity}
+													Qty: {item.quantity || item.qty || item.amount || "1"}
 												</Text>
 												<Text style={styles.previewItemPriority}>
-													{item.priority}
+													{item.priority || "medium"}
 												</Text>
 											</View>
+											{/* Show raw data for debugging */}
+											<Text style={styles.debugItemText}>
+												Raw: {JSON.stringify(item)}
+											</Text>
 										</View>
 									))}
 									{shoppingList.length > 5 && (
@@ -264,9 +372,10 @@ export default function ExportShoppingListModal({
 
 						{/* Format Selection */}
 						<View style={styles.section}>
-							<Text style={styles.sectionTitle}>Export Format</Text>
+							<Text style={styles.sectionTitle}>📄 Export Format</Text>
 							<Text style={styles.sectionDescription}>
-								Choose how you want to export your shopping list
+								Choose how you want to export your shopping list. Text format is
+								recommended for most apps.
 							</Text>
 							<View style={styles.optionsGrid}>
 								{formats.map((format) => (
@@ -275,9 +384,15 @@ export default function ExportShoppingListModal({
 										style={[
 											styles.optionCard,
 											selectedFormat === format.id && styles.optionCardSelected,
+											format.recommended && styles.optionCardRecommended,
 										]}
 										onPress={() => setSelectedFormat(format.id)}
 									>
+										{format.recommended && (
+											<View style={styles.recommendedBadge}>
+												<Text style={styles.recommendedText}>RECOMMENDED</Text>
+											</View>
+										)}
 										<Text style={styles.optionIcon}>{format.icon}</Text>
 										<Text style={styles.optionName}>{format.name}</Text>
 										<Text style={styles.optionDescription}>
@@ -290,10 +405,11 @@ export default function ExportShoppingListModal({
 
 						{/* App Selection */}
 						<View style={styles.section}>
-							<Text style={styles.sectionTitle}>Export Destination</Text>
+							<Text style={styles.sectionTitle}>📱 Export Destination</Text>
 							<Text style={styles.sectionDescription}>
 								Choose where to send your shopping list. The system will
-								automatically select the best available option.
+								automatically select the best available option and show the
+								native share sheet.
 							</Text>
 							<View style={styles.optionsGrid}>
 								{apps.filter(isAppAvailable).map((app) => (
@@ -317,11 +433,12 @@ export default function ExportShoppingListModal({
 
 						{/* Export Process Info */}
 						<View style={styles.section}>
-							<Text style={styles.sectionTitle}>How Export Works</Text>
+							<Text style={styles.sectionTitle}>🔄 How Export Works</Text>
 							<Text style={styles.sectionDescription}>
 								Your shopping list will be exported as a file and shared using
-								your device's native sharing system. You can then choose to open
-								it in any compatible app.
+								your device's native sharing system. The system automatically
+								detects available apps and shows the share sheet for you to
+								choose where to send it.
 							</Text>
 						</View>
 
@@ -345,32 +462,52 @@ export default function ExportShoppingListModal({
 						</View>
 
 						{/* Test Section - Remove this in production */}
-						{shoppingList.length === 0 && (
-							<View style={styles.section}>
-								<Text style={styles.sectionTitle}>Test Export</Text>
-								<Text style={styles.sectionDescription}>
-									Add a test item to try the export functionality
-								</Text>
-								<TouchableOpacity
-									style={styles.testButton}
-									onPress={() => {
-										// This would add a test item to the shopping list
-										console.log("Test button clicked - would add test item");
-										Alert.alert(
-											"Test",
-											"This would add a test item to your shopping list"
-										);
-									}}
-								>
-									<Ionicons
-										name="add-circle-outline"
-										size={20}
-										color="#10b981"
-									/>
-									<Text style={styles.testButtonText}>Add Test Item</Text>
-								</TouchableOpacity>
-							</View>
-						)}
+						<View style={styles.section}>
+							<Text style={styles.sectionTitle}>🧪 Test Export</Text>
+							<Text style={styles.sectionDescription}>
+								Test the export functionality with simple data
+							</Text>
+							<TouchableOpacity
+								style={styles.testButton}
+								onPress={() => {
+									console.log("Test export button clicked");
+									// Test with simple data to see if export works
+									const testData = [
+										{ name: "Test Item 1", quantity: "2", priority: "high" },
+										{ name: "Test Item 2", quantity: "1", priority: "medium" },
+									];
+									console.log("Testing export with:", testData);
+
+									// Try to export test data
+									ExternalAppsService.exportToExternalApp(
+										testData,
+										"text",
+										"share"
+									)
+										.then(() => {
+											console.log("Test export successful");
+											Alert.alert(
+												"Test Export",
+												"Test export completed successfully!"
+											);
+										})
+										.catch((error) => {
+											console.error("Test export failed:", error);
+											Alert.alert(
+												"Test Export Failed",
+												`Error: ${error.message}`
+											);
+										});
+								}}
+							>
+								<Ionicons
+									name="play-circle-outline"
+									size={20}
+									color="#10b981"
+								/>
+								<Text style={styles.testButtonText}>Test Export</Text>
+							</TouchableOpacity>
+						</View>
 					</ScrollView>
 
 					{/* Success Message */}
@@ -479,6 +616,12 @@ const styles = StyleSheet.create({
 		color: "#6b7280",
 		marginTop: 2,
 	},
+	headerNote: {
+		fontSize: 12,
+		color: "#8A2BE2",
+		marginTop: 4,
+		fontWeight: "500",
+	},
 	closeButton: {
 		padding: 4,
 	},
@@ -564,6 +707,29 @@ const styles = StyleSheet.create({
 		fontStyle: "italic",
 		marginTop: 8,
 	},
+	debugInfo: {
+		backgroundColor: "#fef3c7",
+		borderRadius: 8,
+		padding: 12,
+		marginBottom: 16,
+		borderLeftWidth: 3,
+		borderLeftColor: "#f59e0b",
+	},
+	debugText: {
+		fontSize: 11,
+		color: "#92400e",
+		fontFamily: "monospace",
+		marginBottom: 4,
+	},
+	debugItemText: {
+		fontSize: 10,
+		color: "#92400e",
+		fontFamily: "monospace",
+		marginTop: 4,
+		backgroundColor: "rgba(245, 158, 11, 0.1)",
+		padding: 4,
+		borderRadius: 4,
+	},
 	section: {
 		marginBottom: 32,
 	},
@@ -596,6 +762,25 @@ const styles = StyleSheet.create({
 	optionCardSelected: {
 		borderColor: "#8A2BE2",
 		backgroundColor: "#f3e8ff",
+	},
+	optionCardRecommended: {
+		borderColor: "#10b981",
+		backgroundColor: "#ecfdf5",
+	},
+	recommendedBadge: {
+		position: "absolute",
+		top: -8,
+		right: -8,
+		backgroundColor: "#10b981",
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 12,
+	},
+	recommendedText: {
+		fontSize: 10,
+		fontWeight: "700",
+		color: "#fff",
+		textAlign: "center",
 	},
 	optionIcon: {
 		fontSize: 24,

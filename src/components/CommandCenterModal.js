@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -6,10 +6,13 @@ import {
 	TouchableOpacity,
 	Modal,
 	Dimensions,
+	Alert,
+	ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { useSocket } from "../contexts/SocketContext";
 
 const { height } = Dimensions.get("window");
 
@@ -19,6 +22,95 @@ export default function CommandCenter({
 	onOpenShoppingList,
 }) {
 	const [visible, setVisible] = useState(false);
+	const [devices, setDevices] = useState([]);
+	const [deviceStatus, setDeviceStatus] = useState({});
+	const { socket, sendCommand } = useSocket();
+
+	// WebSocket real-time updates
+	useEffect(() => {
+		if (!socket) return;
+
+		const onDeviceStatus = (data) => {
+			if (!data || !data.deviceId) return;
+			setDeviceStatus((prev) => ({
+				...prev,
+				[data.deviceId]: {
+					isOnline: data.isOnline,
+					lastSeen: data.lastSeen,
+					weight: data.weight,
+					status: data.status,
+				},
+			}));
+		};
+
+		const onUpdate = (data) => {
+			if (!data || !data.deviceId) return;
+			setDeviceStatus((prev) => ({
+				...prev,
+				[data.deviceId]: {
+					...prev[data.deviceId],
+					weight: data.weight,
+					status: data.status,
+					ingredient: data.ingredient,
+				},
+			}));
+		};
+
+		const onNfcEvent = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("NFC event in command center:", data);
+		};
+
+		const onCommandResponse = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Command response in command center:", data);
+		};
+
+		socket.on("deviceStatus", onDeviceStatus);
+		socket.on("update", onUpdate);
+		socket.on("nfcEvent", onNfcEvent);
+		socket.on("commandResponse", onCommandResponse);
+
+		return () => {
+			socket.off("deviceStatus", onDeviceStatus);
+			socket.off("update", onUpdate);
+			socket.off("nfcEvent", onNfcEvent);
+			socket.off("commandResponse", onCommandResponse);
+		};
+	}, [socket]);
+
+	// Broadcast command functions
+	const sendBroadcastCommand = (command, data = {}) => {
+		if (!socket) return;
+
+		Alert.alert("Broadcast Command", `Send "${command}" to all devices?`, [
+			{ text: "Cancel", style: "cancel" },
+			{
+				text: "Send",
+				onPress: () => {
+					sendCommand({
+						deviceId: "broadcast",
+						command: "broadcast",
+						broadcastCommand: command,
+						...data,
+					});
+					Alert.alert(
+						"Success",
+						`Broadcast command "${command}" sent to all devices`
+					);
+				},
+			},
+		]);
+	};
+
+	const getOnlineDeviceCount = () => {
+		return Object.values(deviceStatus).filter((status) => status.isOnline)
+			.length;
+	};
+
+	const getTotalDeviceCount = () => {
+		return Object.keys(deviceStatus).length;
+	};
 
 	return (
 		<>
@@ -54,6 +146,15 @@ export default function CommandCenter({
 							tint="light"
 							style={styles.dropdownContent}
 						>
+							{/* Device Status Header */}
+							<View style={styles.statusHeader}>
+								<Text style={styles.statusTitle}>Device Status</Text>
+								<Text style={styles.statusSubtitle}>
+									{getOnlineDeviceCount()}/{getTotalDeviceCount()} Online
+								</Text>
+							</View>
+
+							{/* Navigation Menu Items */}
 							<TouchableOpacity
 								style={styles.menuItem}
 								onPress={() => {
@@ -88,6 +189,44 @@ export default function CommandCenter({
 								<Ionicons name="settings" size={20} color="#6366f1" />
 								<Text style={styles.menuText}>Settings</Text>
 								<Ionicons name="chevron-forward" size={16} color="#9ca3af" />
+							</TouchableOpacity>
+
+							{/* Divider */}
+							<View style={styles.divider} />
+
+							{/* Broadcast Commands */}
+							<Text style={styles.sectionTitle}>Broadcast Commands</Text>
+
+							<TouchableOpacity
+								style={styles.commandItem}
+								onPress={() => sendBroadcastCommand("tare")}
+							>
+								<Ionicons name="scale" size={18} color="#8A2BE2" />
+								<Text style={styles.commandText}>Tare All Scales</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.commandItem}
+								onPress={() => sendBroadcastCommand("nfc_read")}
+							>
+								<Ionicons name="nfc" size={18} color="#8A2BE2" />
+								<Text style={styles.commandText}>Read All NFC Tags</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.commandItem}
+								onPress={() => sendBroadcastCommand("restart")}
+							>
+								<Ionicons name="refresh" size={18} color="#f59e0b" />
+								<Text style={styles.commandText}>Restart All Devices</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={styles.commandItem}
+								onPress={() => sendBroadcastCommand("config")}
+							>
+								<Ionicons name="cog" size={18} color="#6366f1" />
+								<Text style={styles.commandText}>Get All Configs</Text>
 							</TouchableOpacity>
 						</BlurView>
 					</View>
@@ -149,5 +288,53 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: "600",
 		color: "#1f2937",
+	},
+	// New styles for enhanced command center
+	statusHeader: {
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		borderBottomWidth: 1,
+		borderBottomColor: "rgba(156, 163, 175, 0.2)",
+		marginBottom: 8,
+		backgroundColor: "rgba(255,255,255,0.9)",
+	},
+	statusTitle: {
+		fontSize: 14,
+		fontWeight: "700",
+		color: "#374151",
+		marginBottom: 4,
+	},
+	statusSubtitle: {
+		fontSize: 12,
+		color: "#6b7280",
+	},
+	divider: {
+		height: 1,
+		backgroundColor: "rgba(156, 163, 175, 0.2)",
+		marginVertical: 12,
+	},
+	sectionTitle: {
+		fontSize: 12,
+		fontWeight: "700",
+		color: "#6b7280",
+		textTransform: "uppercase",
+		letterSpacing: 0.5,
+		paddingHorizontal: 16,
+		marginBottom: 8,
+		backgroundColor: "rgba(255,255,255,0.9)",
+		paddingVertical: 8,
+	},
+	commandItem: {
+		flexDirection: "row",
+		alignItems: "center",
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		gap: 12,
+		backgroundColor: "rgba(255,255,255,0.9)",
+	},
+	commandText: {
+		fontSize: 14,
+		fontWeight: "500",
+		color: "#374151",
 	},
 });

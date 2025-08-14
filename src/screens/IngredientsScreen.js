@@ -21,6 +21,7 @@ import {
 	fetchIngredientPrediction,
 	fetchIngredientLogs,
 } from "../services/ingredients";
+import { useSocket } from "../contexts/SocketContext";
 
 const screenWidth = Dimensions.get("window").width;
 
@@ -34,6 +35,7 @@ export default function IngredientsScreen() {
 	const [analyticsLoading, setAnalyticsLoading] = useState({});
 	const [searchQuery, setSearchQuery] = useState("");
 	const [filterStatus, setFilterStatus] = useState("all");
+	const { socket } = useSocket();
 
 	useEffect(() => {
 		loadIngredients();
@@ -43,6 +45,96 @@ export default function IngredientsScreen() {
 			chartDataCache.clear();
 		};
 	}, []);
+
+	// WebSocket real-time updates for ingredients
+	useEffect(() => {
+		if (!socket) return;
+
+		const onUpdate = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Ingredient update via WebSocket:", data);
+
+			// Update ingredient data in real-time
+			setIngredients((prev) =>
+				prev.map((ing) =>
+					ing.device === data.deviceId
+						? {
+								...ing,
+								weight: data.weight ?? ing.weight,
+								status: data.status ?? ing.status,
+								ingredient: data.ingredient ?? ing.ingredient,
+								lastUpdated: new Date(),
+						  }
+						: ing
+				)
+			);
+		};
+
+		const onDeviceStatus = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Device status update for ingredients:", data);
+
+			// Update device status in ingredients
+			setIngredients((prev) =>
+				prev.map((ing) =>
+					ing.device === data.deviceId
+						? {
+								...ing,
+								deviceOnline: data.isOnline,
+								lastSeen: data.lastSeen,
+						  }
+						: ing
+				)
+			);
+		};
+
+		// NFC and Command events for ingredients
+		const onNfcEvent = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("NFC event for ingredients:", data);
+
+			// Update ingredient if NFC tag changed
+			if (data.type === "read" && data.ingredient) {
+				setIngredients((prev) =>
+					prev.map((ing) =>
+						ing.device === data.deviceId
+							? {
+									...ing,
+									ingredient: data.ingredient,
+									tagUID: data.tagUID,
+									lastNfcUpdate: new Date(),
+							  }
+							: ing
+					)
+				);
+			}
+		};
+
+		const onCommandResponse = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Command response for ingredients:", data);
+
+			// Handle ingredient-related commands
+			if (data.command === "tare" || data.command === "calibrate") {
+				// Reload ingredients after scale operations
+				setTimeout(() => {
+					loadIngredients();
+				}, 1000);
+			}
+		};
+
+		socket.on("update", onUpdate);
+		socket.on("deviceStatus", onDeviceStatus);
+		socket.on("nfcEvent", onNfcEvent);
+		socket.on("commandResponse", onCommandResponse);
+
+		return () => {
+			socket.off("update", onUpdate);
+			socket.off("deviceStatus", onDeviceStatus);
+			socket.off("nfcEvent", onNfcEvent);
+			socket.off("commandResponse", onCommandResponse);
+		};
+	}, [socket]);
 
 	async function loadIngredients() {
 		try {

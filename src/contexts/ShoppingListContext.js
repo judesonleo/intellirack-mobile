@@ -19,6 +19,13 @@ export function ShoppingListProvider({ children }) {
 		loadShoppingList();
 	}, []);
 
+	// Clean up corrupted items after loading
+	useEffect(() => {
+		if (shoppingList.length > 0 && !loading) {
+			cleanupCorruptedItems();
+		}
+	}, [shoppingList, loading]);
+
 	const loadShoppingList = async () => {
 		try {
 			setLoading(true);
@@ -41,11 +48,44 @@ export function ShoppingListProvider({ children }) {
 		}
 	};
 
+	// Helper function to sanitize item names
+	const sanitizeItemName = (name) => {
+		if (!name || typeof name !== "string") return "Unknown Item";
+
+		// Remove or replace corrupted characters
+		let sanitized = name
+			.replace(/[^\x20-\x7E]/g, "") // Remove non-printable ASCII characters
+			.replace(/[^\w\s\-\.]/g, "") // Remove special characters except spaces, hyphens, dots
+			.trim();
+
+		// If name is too short or corrupted, try to extract meaningful parts
+		if (sanitized.length < 2) {
+			// Try to find any readable text in the original name
+			const readable = name.match(/[a-zA-Z0-9\s]+/g);
+			if (readable && readable.length > 0) {
+				sanitized = readable.join(" ").trim();
+			}
+		}
+
+		return sanitized.length > 0 ? sanitized : "Unknown Item";
+	};
+
 	const addToShoppingList = async (item) => {
 		try {
+			// Validate and sanitize the item data
+			const sanitizedName = sanitizeItemName(item.name);
+
+			// Don't add items with completely corrupted names
+			if (sanitizedName === "Unknown Item") {
+				console.warn("Skipping item with corrupted name:", item.name);
+				throw new Error(
+					"Item name is corrupted and cannot be added to shopping list"
+				);
+			}
+
 			const newItem = {
 				id: Date.now().toString(),
-				name: item.name,
+				name: sanitizedName, // Use sanitized name
 				quantity: item.quantity || "1",
 				notes: item.notes || "",
 				addedAt: new Date().toISOString(),
@@ -110,6 +150,28 @@ export function ShoppingListProvider({ children }) {
 		}
 	};
 
+	// Clean up corrupted items from existing shopping list
+	const cleanupCorruptedItems = async () => {
+		try {
+			const corruptedItems = shoppingList.filter((item) => {
+				const sanitizedName = sanitizeItemName(item.name);
+				return sanitizedName === "Unknown Item";
+			});
+
+			if (corruptedItems.length > 0) {
+				console.log("Cleaning up corrupted items:", corruptedItems);
+				const cleanList = shoppingList.filter((item) => {
+					const sanitizedName = sanitizeItemName(item.name);
+					return sanitizedName !== "Unknown Item";
+				});
+				setShoppingList(cleanList);
+				await saveShoppingList(cleanList);
+			}
+		} catch (error) {
+			console.error("Failed to cleanup corrupted items:", error);
+		}
+	};
+
 	const value = {
 		shoppingList,
 		addToShoppingList,
@@ -117,6 +179,7 @@ export function ShoppingListProvider({ children }) {
 		updateShoppingListItem,
 		clearShoppingList,
 		toggleItemComplete,
+		cleanupCorruptedItems,
 		loading,
 	};
 

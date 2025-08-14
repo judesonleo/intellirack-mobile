@@ -27,6 +27,7 @@ export default function DashboardScreen() {
 		alerts: 0,
 	});
 
+	const [devices, setDevices] = useState([]);
 	const [alerts, setAlerts] = useState([]);
 	const [logs, setLogs] = useState([]);
 	const [ingredients, setIngredients] = useState([]);
@@ -62,6 +63,7 @@ export default function DashboardScreen() {
 			// Use helper function to calculate device counts
 			const deviceCounts = recalculateDeviceCounts(devices);
 
+			setDevices(devices || []);
 			setCounts({
 				devices: (devices || []).length,
 				online: deviceCounts.online,
@@ -97,34 +99,201 @@ export default function DashboardScreen() {
 			});
 		};
 
-		const onDeviceStatusChange = (data) => {
-			if (!data || !data.rackId) return;
-			console.log("Device status change:", data);
+		const onDeviceStatus = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Device status update:", data);
 
-			// Update device status in real-time
-			setCounts((prev) => {
-				// For now, just update the counts based on the status change
-				// In a full implementation, we'd update the devices array and recalculate
-				if (data.isOnline !== undefined) {
-					const onlineChange = data.isOnline ? 1 : -1;
-					return {
-						...prev,
-						online: Math.max(0, prev.online + onlineChange),
-						offline: Math.max(0, prev.offline - onlineChange),
-					};
-				}
-				return prev;
+			// Update device status in real-time like web app
+			setDevices((prev) => {
+				const updated = prev.map((device) =>
+					device.rackId === data.deviceId
+						? {
+								...device,
+								isOnline: data.isOnline,
+								lastSeen: data.lastSeen,
+								weight: data.weight,
+								status: data.status,
+								ingredient: data.ingredient,
+						  }
+						: device
+				);
+
+				// Recalculate device counts after status update
+				const deviceCounts = recalculateDeviceCounts(updated);
+				setCounts((c) => ({
+					...c,
+					devices: updated.length,
+					online: deviceCounts.online,
+					offline: deviceCounts.offline,
+				}));
+
+				return updated;
 			});
 		};
 
+		const onUpdate = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Device update:", data);
+
+			// Handle general device updates (weight, status, ingredient changes)
+			setDevices((prev) =>
+				prev.map((device) =>
+					device.rackId === data.deviceId
+						? {
+								...device,
+								isOnline: data.isOnline ?? true,
+								lastSeen: data.lastSeen ?? new Date(),
+								weight: data.weight,
+								status: data.status,
+								ingredient: data.ingredient,
+						  }
+						: device
+				)
+			);
+
+			// Also update ingredients if weight/status changed
+			if (data.weight !== undefined || data.status !== undefined) {
+				setIngredients((prev) =>
+					prev.map((ing) =>
+						ing.device === data.deviceId
+							? {
+									...ing,
+									weight: data.weight ?? ing.weight,
+									status: data.status ?? ing.status,
+									ingredient: data.ingredient ?? ing.ingredient,
+							  }
+							: ing
+					)
+				);
+			}
+		};
+
+		const onDeviceAdded = () => {
+			console.log("Device added, reloading devices...");
+			load(); // Reload to get the new device
+		};
+
+		const onDeviceDeleted = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Device deleted:", data);
+
+			// Remove the deleted device from local state
+			setDevices((prev) =>
+				prev.filter(
+					(d) => d._id !== data.deviceId && d.rackId !== data.deviceId
+				)
+			);
+
+			// Recalculate counts
+			setCounts((prev) => {
+				const remainingDevices = devices.filter(
+					(d) => d._id !== data.deviceId && d.rackId !== data.deviceId
+				);
+				const deviceCounts = recalculateDeviceCounts(remainingDevices);
+				return {
+					...prev,
+					devices: remainingDevices.length,
+					online: deviceCounts.online,
+					offline: deviceCounts.offline,
+				};
+			});
+		};
+
+		// NFC and Command events
+		const onNfcEvent = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("NFC event received:", data);
+
+			// Update device with NFC status
+			setDevices((prev) =>
+				prev.map((device) =>
+					device.rackId === data.deviceId
+						? {
+								...device,
+								nfcStatus: {
+									type: data.type,
+									tagUID: data.tagUID,
+									ingredient: data.ingredient,
+									timestamp: data.timestamp,
+								},
+						  }
+						: device
+				)
+			);
+		};
+
+		const onCommandResponse = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Command response received:", data);
+
+			// Update device with command status
+			setDevices((prev) =>
+				prev.map((device) =>
+					device.rackId === data.deviceId
+						? {
+								...device,
+								lastCommand: {
+									command: data.command,
+									response: data.response,
+									timestamp: data.timestamp,
+									success: data.success,
+								},
+						  }
+						: device
+				)
+			);
+		};
+
+		const onCommandSent = (data) => {
+			if (!data || !data.deviceId) return;
+			console.log("Command sent confirmation:", data);
+
+			// Update device with command status
+			setDevices((prev) =>
+				prev.map((device) =>
+					device.rackId === data.deviceId
+						? {
+								...device,
+								commandStatus: {
+									command: data.command,
+									success: data.success,
+									error: data.error,
+									timestamp: new Date(),
+								},
+						  }
+						: device
+				)
+			);
+		};
+
+		const onDeviceRegistered = (data) => {
+			if (!data || !data.success) return;
+			console.log("Device registered successfully:", data);
+
+			// Reload devices to get the newly registered device
+			load();
+		};
+
 		socket.on("alert", onAlert);
-		socket.on("deviceStatusChange", onDeviceStatusChange);
-		socket.on("deviceStatus", onDeviceStatusChange); // Web app uses this event
+		socket.on("deviceStatus", onDeviceStatus); // Web app uses this event
+		socket.on("update", onUpdate); // Web app also uses this event
+		socket.on("deviceAdded", onDeviceAdded); // Device added event
+		socket.on("deviceDeleted", onDeviceDeleted); // Device deleted event
+		socket.on("nfcEvent", onNfcEvent); // NFC events
+		socket.on("commandResponse", onCommandResponse); // Command responses
+		socket.on("commandSent", onCommandSent); // Command sent confirmations
+		socket.on("deviceRegistered", onDeviceRegistered); // Device registration confirmations
 
 		return () => {
 			socket.off("alert", onAlert);
-			socket.off("deviceStatusChange", onDeviceStatusChange);
-			socket.off("deviceStatus", onDeviceStatusChange);
+			socket.off("deviceStatus", onDeviceStatus);
+			socket.off("update", onUpdate);
+			socket.off("deviceAdded", onDeviceAdded);
+			socket.off("deviceDeleted", onDeviceDeleted);
+			socket.off("nfcEvent", onNfcEvent);
+			socket.off("commandResponse", onCommandResponse);
+			socket.off("commandSent", onCommandSent);
+			socket.off("deviceRegistered", onDeviceRegistered);
 		};
 	}, [socket]);
 
@@ -177,9 +346,43 @@ export default function DashboardScreen() {
 			.slice(0, 3);
 	};
 
+	// Helper function to sanitize ingredient names
+	const sanitizeIngredientName = (name) => {
+		if (!name || typeof name !== "string") return "Unknown Ingredient";
+
+		// Remove or replace corrupted characters
+		let sanitized = name
+			.replace(/[^\x20-\x7E]/g, "") // Remove non-printable ASCII characters
+			.replace(/[^\w\s\-\.]/g, "") // Remove special characters except spaces, hyphens, dots
+			.trim();
+
+		// If name is too short or corrupted, try to extract meaningful parts
+		if (sanitized.length < 2) {
+			// Try to find any readable text in the original name
+			const readable = name.match(/[a-zA-Z0-9\s]+/g);
+			if (readable && readable.length > 0) {
+				sanitized = readable.join(" ").trim();
+			}
+		}
+
+		return sanitized.length > 0 ? sanitized : "Unknown Ingredient";
+	};
+
 	const getSoonToBeEmpty = () => {
 		console.log("getSoonToBeEmpty - ingredients data:", ingredients);
-		const filtered = ingredients.filter((ing) => (ing.weight || 0) < 100);
+
+		// Filter ingredients with low weight AND valid names
+		const filtered = ingredients.filter((ing) => {
+			const hasLowWeight = (ing.weight || 0) < 100;
+			const hasValidName =
+				ing.name &&
+				typeof ing.name === "string" &&
+				ing.name.length > 0 &&
+				!/[^\x20-\x7E]/.test(ing.name); // Check for non-printable characters
+
+			return hasLowWeight && hasValidName;
+		});
+
 		console.log("getSoonToBeEmpty - filtered items:", filtered);
 		return filtered;
 	};
@@ -420,6 +623,89 @@ export default function DashboardScreen() {
 					</View>
 				</View>
 
+				{/* Real-time Device Activity */}
+				{devices.length > 0 && (
+					<View style={styles.sectionCard}>
+						<View style={styles.sectionHeader}>
+							<Text style={styles.sectionTitle}>Device Activity</Text>
+							<View style={styles.activityStatus}>
+								<View
+									style={[styles.statusDot, { backgroundColor: "#10b981" }]}
+								/>
+								<Text style={styles.activityStatusText}>
+									{counts.online}/{counts.devices} Online
+								</Text>
+							</View>
+						</View>
+						<ScrollView horizontal showsHorizontalScrollIndicator={false}>
+							{devices.slice(0, 5).map((device, index) => (
+								<View
+									key={device.rackId || index}
+									style={styles.deviceActivityCard}
+								>
+									<View style={styles.deviceActivityHeader}>
+										<Text style={styles.deviceActivityName}>
+											{device.name || device.rackId}
+										</Text>
+										<View
+											style={[
+												styles.deviceActivityStatus,
+												{
+													backgroundColor: device.isOnline
+														? "#10b981"
+														: "#ef4444",
+												},
+											]}
+										>
+											<Text style={styles.deviceActivityStatusText}>
+												{device.isOnline ? "ONLINE" : "OFFLINE"}
+											</Text>
+										</View>
+									</View>
+
+									{device.lastCommand && (
+										<View style={styles.deviceCommandInfo}>
+											<Text style={styles.deviceCommandLabel}>
+												Last Command:
+											</Text>
+											<Text
+												style={[
+													styles.deviceCommandText,
+													{
+														color: device.lastCommand.success
+															? "#10b981"
+															: "#ef4444",
+													},
+												]}
+											>
+												{device.lastCommand.command}{" "}
+												{device.lastCommand.success ? "✓" : "✗"}
+											</Text>
+										</View>
+									)}
+
+									{device.nfcStatus && (
+										<View style={styles.deviceNfcInfo}>
+											<Text style={styles.deviceNfcLabel}>NFC Status:</Text>
+											<Text style={styles.deviceNfcText}>
+												{device.nfcStatus.type} -{" "}
+												{device.nfcStatus.ingredient || "No tag"}
+											</Text>
+										</View>
+									)}
+
+									<Text style={styles.deviceLastSeen}>
+										Last seen:{" "}
+										{device.lastSeen
+											? new Date(device.lastSeen).toLocaleTimeString()
+											: "Never"}
+									</Text>
+								</View>
+							))}
+						</ScrollView>
+					</View>
+				)}
+
 				{/* Restock Alerts Section */}
 				<View style={styles.sectionCard}>
 					<View style={styles.sectionHeader}>
@@ -446,7 +732,9 @@ export default function DashboardScreen() {
 									<Ionicons name="warning" size={20} color="#f59e0b" />
 								</View>
 								<View style={styles.restockItemContent}>
-									<Text style={styles.restockItemName}>{item.name}</Text>
+									<Text style={styles.restockItemName}>
+										{sanitizeIngredientName(item.name)}
+									</Text>
 									<Text style={styles.restockItemStatus}>
 										Current: {Math.round(item.weight || 0)}g • Need:{" "}
 										{Math.round((item.maxWeight || 1000) - (item.weight || 0))}g
@@ -554,7 +842,8 @@ export default function DashboardScreen() {
 										]}
 									>
 										<Text style={styles.inventoryItemText}>
-											{item.name}: {Math.round(item.weight || 0)}g
+											{sanitizeIngredientName(item.name)}:{" "}
+											{Math.round(item.weight || 0)}g
 										</Text>
 									</View>
 								))
@@ -579,7 +868,9 @@ export default function DashboardScreen() {
 										]}
 									>
 										<Ionicons name="refresh" size={16} color="#fff" />
-										<Text style={styles.inventoryItemText}>{item.name}</Text>
+										<Text style={styles.inventoryItemText}>
+											{sanitizeIngredientName(item.name)}
+										</Text>
 									</View>
 								))
 							) : (
@@ -1102,5 +1393,85 @@ const styles = StyleSheet.create({
 		color: "#fff",
 		fontSize: 14,
 		fontWeight: "600",
+	},
+	// Device Activity styles
+	activityStatus: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
+	},
+	activityStatusText: {
+		fontSize: 12,
+		fontWeight: "600",
+		color: "#6b7280",
+	},
+	deviceActivityCard: {
+		backgroundColor: "#fff",
+		borderRadius: 12,
+		padding: 16,
+		marginRight: 12,
+		minWidth: 200,
+		borderWidth: 1,
+		borderColor: "rgba(156, 163, 175, 0.2)",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 4,
+		elevation: 2,
+	},
+	deviceActivityHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 12,
+	},
+	deviceActivityName: {
+		fontSize: 14,
+		fontWeight: "700",
+		color: "#1f2937",
+		flex: 1,
+	},
+	deviceActivityStatus: {
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 6,
+	},
+	deviceActivityStatusText: {
+		fontSize: 10,
+		fontWeight: "700",
+		color: "white",
+		textTransform: "uppercase",
+	},
+	deviceCommandInfo: {
+		marginBottom: 8,
+	},
+	deviceCommandLabel: {
+		fontSize: 11,
+		fontWeight: "600",
+		color: "#6b7280",
+		marginBottom: 2,
+	},
+	deviceCommandText: {
+		fontSize: 12,
+		fontWeight: "600",
+	},
+	deviceNfcInfo: {
+		marginBottom: 8,
+	},
+	deviceNfcLabel: {
+		fontSize: 11,
+		fontWeight: "600",
+		color: "#6b7280",
+		marginBottom: 2,
+	},
+	deviceNfcText: {
+		fontSize: 12,
+		fontWeight: "500",
+		color: "#8A2BE2",
+	},
+	deviceLastSeen: {
+		fontSize: 10,
+		color: "#9ca3af",
+		fontStyle: "italic",
 	},
 });

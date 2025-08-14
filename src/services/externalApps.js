@@ -16,6 +16,8 @@ class ExternalAppsService {
 			format,
 			app,
 		});
+		console.log("ExternalAppsService - Platform:", Platform.OS);
+		console.log("ExternalAppsService - Is Expo:", typeof Expo !== "undefined");
 
 		try {
 			let content = "";
@@ -290,16 +292,23 @@ class ExternalAppsService {
 	// Share file using system share sheet
 	async shareFile(fileUri, mimeType, fileName) {
 		console.log("shareFile called with:", { fileUri, mimeType, fileName });
+		console.log("shareFile - Platform:", Platform.OS);
 
 		try {
+			// Check if sharing is available
 			const isAvailable = await Sharing.isAvailableAsync();
+			console.log("Sharing available:", isAvailable);
+
 			if (isAvailable) {
+				console.log("Attempting to share file...");
 				await Sharing.shareAsync(fileUri, {
 					mimeType,
 					dialogTitle: `Share ${fileName}`,
 					UTI: this.getUTI(mimeType),
 				});
+				console.log("Share completed successfully");
 			} else {
+				console.log("Sharing not available, using fallback");
 				// Fallback to copying to clipboard
 				const content = await FileSystem.readAsStringAsync(fileUri);
 				// You'd need to implement clipboard functionality here
@@ -307,6 +316,14 @@ class ExternalAppsService {
 			}
 		} catch (error) {
 			console.error("Share failed:", error);
+			console.error("Share error details:", {
+				platform: Platform.OS,
+				fileUri,
+				mimeType,
+				fileName,
+				error: error.message,
+				stack: error.stack,
+			});
 			Alert.alert("Share Failed", "Unable to share file");
 		}
 	}
@@ -495,11 +512,9 @@ class ExternalAppsService {
 		}
 	}
 
-	// Show app selection dialog
 	showAppSelectionDialog(apps, fileUri, mimeType, fileName) {
 		console.log("Using system share sheet as fallback");
-		// This would typically show a custom modal with app options
-		// For now, we'll use the system share sheet which is most reliable
+
 		this.shareFile(fileUri, mimeType, fileName);
 	}
 }

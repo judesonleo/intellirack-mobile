@@ -30,7 +30,7 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 			onPress={onPress}
 			disabled={isDeleting}
 		>
-			{/* Top Row - Status Badge */}
+			{/* Top Row - Status Badge and NFC Status */}
 			<View style={styles.topRow}>
 				<View style={styles.statusBadge}>
 					<Text
@@ -42,6 +42,39 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 						{device?.isOnline ? "ONLINE" : "OFFLINE"}
 					</Text>
 				</View>
+
+				{/* NFC Status Indicator */}
+				{device?.nfcStatus && (
+					<View style={styles.nfcBadge}>
+						<Ionicons name="nfc" size={16} color="#8A2BE2" />
+						<Text style={styles.nfcText}>
+							{device.nfcStatus.type?.toUpperCase()}
+						</Text>
+					</View>
+				)}
+
+				{/* Command Status Indicator */}
+				{device?.commandStatus && (
+					<View
+						style={[
+							styles.commandBadge,
+							{
+								backgroundColor: device.commandStatus.success
+									? "#10b981"
+									: "#ef4444",
+							},
+						]}
+					>
+						<Ionicons
+							name={device.commandStatus.success ? "checkmark" : "close"}
+							size={14}
+							color="white"
+						/>
+						<Text style={styles.commandText}>
+							{device.commandStatus.command}
+						</Text>
+					</View>
+				)}
 			</View>
 
 			{/* Main Row - Big Image Left, Weight Right */}
@@ -230,6 +263,38 @@ const styles = StyleSheet.create({
 		color: "#fff",
 		fontSize: 13,
 		fontWeight: "600",
+	},
+	// NFC and Command status badges
+	nfcBadge: {
+		flexDirection: "row",
+		alignItems: "center",
+		backgroundColor: "rgba(138, 43, 226, 0.1)",
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: "rgba(138, 43, 226, 0.3)",
+		gap: 4,
+	},
+	nfcText: {
+		fontSize: 10,
+		fontWeight: "600",
+		color: "#8A2BE2",
+		textTransform: "uppercase",
+	},
+	commandBadge: {
+		flexDirection: "row",
+		alignItems: "center",
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+		borderRadius: 6,
+		gap: 4,
+	},
+	commandText: {
+		fontSize: 10,
+		fontWeight: "600",
+		color: "white",
+		textTransform: "uppercase",
 	},
 	// Deletion overlay styles
 	cardDeleting: {

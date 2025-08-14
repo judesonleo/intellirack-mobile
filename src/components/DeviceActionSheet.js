@@ -68,7 +68,7 @@ export default function DeviceActionSheet({
 		if (!socket) return;
 
 		// Listen for command responses
-		socket.on("commandResponse", (data) => {
+		const onCommandResponse = (data) => {
 			if (data.deviceId === (device?.rackId || device?._id)) {
 				setCommandResponses((prev) => ({
 					...prev,
@@ -95,10 +95,93 @@ export default function DeviceActionSheet({
 					Alert.alert("Error", data.message || "Command failed");
 				}
 			}
-		});
+		};
+
+		// Listen for command sent confirmations
+		const onCommandSent = (data) => {
+			if (data.deviceId === (device?.rackId || device?._id)) {
+				if (data.success) {
+					console.log(`Command ${data.command} sent successfully`);
+				} else {
+					console.error(`Command ${data.command} failed to send:`, data.error);
+					Alert.alert("Error", `Failed to send command: ${data.error}`);
+					setLoadingStates((prev) => ({
+						...prev,
+						[data.command]: false,
+					}));
+				}
+			}
+		};
+
+		// Listen for NFC events
+		const onNfcEvent = (data) => {
+			if (data.deviceId === (device?.rackId || device?._id)) {
+				console.log("NFC event received:", data);
+
+				// Handle different NFC event types
+				switch (data.type) {
+					case "read":
+						Alert.alert(
+							"NFC Tag Read",
+							`Ingredient: ${data.ingredient || "Unknown"}\nUID: ${
+								data.tagUID || "N/A"
+							}`
+						);
+						break;
+					case "write":
+						Alert.alert(
+							"NFC Write",
+							data.response || "Tag written successfully"
+						);
+						break;
+					case "clear":
+						Alert.alert(
+							"NFC Clear",
+							data.response || "Tag cleared successfully"
+						);
+						break;
+					case "format":
+						Alert.alert(
+							"NFC Format",
+							data.response || "Tag formatted successfully"
+						);
+						break;
+					case "removed":
+						Alert.alert("NFC Tag Removed", "Tag is no longer present");
+						break;
+					default:
+						console.log("Unknown NFC event type:", data.type);
+				}
+			}
+		};
+
+		// Listen for device status changes
+		const onDeviceStatus = (data) => {
+			if (data.deviceId === (device?.rackId || device?._id)) {
+				console.log("Device status update:", data);
+
+				// Update device status in real-time
+				if (data.isOnline !== undefined) {
+					// You could update a local device state here if needed
+					console.log(
+						`Device ${data.deviceId} is now ${
+							data.isOnline ? "online" : "offline"
+						}`
+					);
+				}
+			}
+		};
+
+		socket.on("commandResponse", onCommandResponse);
+		socket.on("commandSent", onCommandSent);
+		socket.on("nfcEvent", onNfcEvent);
+		socket.on("deviceStatus", onDeviceStatus);
 
 		return () => {
-			socket.off("commandResponse");
+			socket.off("commandResponse", onCommandResponse);
+			socket.off("commandSent", onCommandSent);
+			socket.off("nfcEvent", onNfcEvent);
+			socket.off("deviceStatus", onDeviceStatus);
 		};
 	}, [socket, device]);
 
