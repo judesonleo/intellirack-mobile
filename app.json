@@ -1,29 +1,37 @@
 {
   "expo": {
-    "name": "intellirack-mobile",
-    "slug": "intellirack-mobile",
+    "name": "IntelliRack - Smart Kitchen Rack Automation",
+    "slug": "intellirack",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/intellirack.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/intellirack.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.judesonleo.intellirack"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/intellirack.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.judesonleo.intellirack"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/intellirack.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a103c268-d325-4767-8a50-4731f1416b08"
+      }
+    },
+    "owner": "judeson_leo"
   }
 }
