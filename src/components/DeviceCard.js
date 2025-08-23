@@ -1,9 +1,83 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import slot from "../../assets/slot.png";
+import { useSocket } from "../contexts/SocketContext";
 
 export default function DeviceCard({ device, onPress, isDeleting = false }) {
+	// NEW: State to track real-time device data
+	const [realTimeData, setRealTimeData] = useState({
+		weight: null,
+		status: null,
+		ingredient: null,
+		lastSeen: null,
+		isOnline: true,
+	});
+
+	const { socket } = useSocket();
+
+	// Initialize real-time data when device changes
+	useEffect(() => {
+		if (device) {
+			setRealTimeData({
+				weight: device.lastWeight,
+				status: device.lastStatus,
+				ingredient: device.ingredient,
+				lastSeen: device.lastSeen,
+				isOnline: device.isOnline,
+			});
+		}
+	}, [device]);
+
+	// Listen for websocket events to update real-time data
+	useEffect(() => {
+		if (!socket || !device) return;
+
+		const onDeviceUpdate = (data) => {
+			if (data.deviceId === (device?.rackId || device?._id)) {
+				console.log("DeviceCard - Device update received:", data);
+
+				setRealTimeData((prev) => ({
+					...prev,
+					weight: data.weight ?? prev.weight,
+					status: data.status ?? prev.status,
+					ingredient: data.ingredient ?? prev.ingredient,
+					lastSeen: data.lastSeen ?? prev.lastSeen,
+					isOnline: data.isOnline ?? prev.isOnline,
+				}));
+			}
+		};
+
+		const onDeviceStatus = (data) => {
+			if (data.deviceId === (device?.rackId || device?._id)) {
+				console.log("DeviceCard - Device status received:", data);
+
+				setRealTimeData((prev) => ({
+					...prev,
+					weight: data.weight ?? prev.weight,
+					status: data.status ?? prev.status,
+					ingredient: data.ingredient ?? prev.ingredient,
+					lastSeen: data.lastSeen ?? prev.lastSeen,
+					isOnline: data.isOnline ?? prev.isOnline,
+				}));
+			}
+		};
+
+		socket.on("update", onDeviceUpdate);
+		socket.on("deviceStatus", onDeviceStatus);
+
+		// Test event listener
+		socket.on("test", (data) => {
+			console.log("DeviceCard - Test response received:", data);
+		});
+
+		return () => {
+			socket.off("update", onDeviceUpdate);
+			socket.off("deviceStatus", onDeviceStatus);
+			socket.off("test");
+		};
+	}, [socket, device]);
+
 	const getStatusColor = (status) => {
 		switch (status?.toLowerCase()) {
 			case "empty":
@@ -18,8 +92,9 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 	};
 
 	const getStatusText = () => {
-		if (!device?.lastWeight || device.lastWeight < 50) return "EMPTY";
-		if (device.lastWeight < 200) return "LOW";
+		const currentWeight = realTimeData.weight ?? device?.lastWeight;
+		if (!currentWeight || currentWeight < 50) return "EMPTY";
+		if (currentWeight < 200) return "LOW";
 		return "GOOD";
 	};
 
@@ -30,16 +105,25 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 			onPress={onPress}
 			disabled={isDeleting}
 		>
+			{/* Debug Info - Remove in production */}
+			{/* {__DEV__ && (
+				<View style={styles.debugSection}>
+					<Text style={styles.debugTitle}>Debug: Real-time Data</Text>
+					<Text style={styles.debugText}>
+						{JSON.stringify(realTimeData, null, 2)}
+					</Text>
+				</View>
+			)} */}
 			{/* Top Row - Status Badge and NFC Status */}
 			<View style={styles.topRow}>
 				<View style={styles.statusBadge}>
 					<Text
 						style={[
 							styles.statusText,
-							{ color: device?.isOnline ? "#10b981" : "#ef4444" },
+							{ color: realTimeData.isOnline ? "#10b981" : "#ef4444" },
 						]}
 					>
-						{device?.isOnline ? "ONLINE" : "OFFLINE"}
+						{realTimeData.isOnline ? "ONLINE" : "OFFLINE"}
 					</Text>
 				</View>
 
@@ -84,7 +168,11 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 				</View>
 				<View style={styles.weightSection}>
 					<Text style={styles.weightValue}>
-						{Math.max(0, Math.round(device?.lastWeight || 0))}g
+						{Math.max(
+							0,
+							Math.round(realTimeData.weight ?? (device?.lastWeight || 0))
+						)}
+						g
 					</Text>
 					<Text style={styles.weightLabel}>Current Weight</Text>
 				</View>
@@ -98,7 +186,9 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 						{device?.name || `IntelliRack ${device?.rackId}`}
 					</Text>
 					<Text style={styles.ingredientInfo}>
-						{device?.ingredient || "No ingredient set"}
+						{realTimeData.ingredient ||
+							device?.ingredient ||
+							"No ingredient set"}
 					</Text>
 				</View>
 
@@ -118,7 +208,9 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 					<View style={styles.statItem}>
 						<Text style={styles.statLabel}>Last Updated</Text>
 						<Text style={styles.statValue}>
-							{device?.lastSeen
+							{realTimeData.lastSeen
+								? new Date(realTimeData.lastSeen).toLocaleTimeString()
+								: device?.lastSeen
 								? new Date(device.lastSeen).toLocaleTimeString()
 								: "Never"}
 						</Text>
@@ -319,5 +411,26 @@ const styles = StyleSheet.create({
 		color: "#fff",
 		fontSize: 14,
 		fontWeight: "600",
+	},
+
+	// Debug styles
+	debugSection: {
+		backgroundColor: "#fef3c7",
+		padding: 8,
+		borderRadius: 6,
+		marginBottom: 8,
+		borderWidth: 1,
+		borderColor: "#f59e0b",
+	},
+	debugTitle: {
+		fontSize: 10,
+		fontWeight: "700",
+		color: "#92400e",
+		marginBottom: 2,
+	},
+	debugText: {
+		fontSize: 8,
+		color: "#92400e",
+		fontFamily: "monospace",
 	},
 });

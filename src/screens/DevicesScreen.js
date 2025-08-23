@@ -42,15 +42,47 @@ export default function DevicesScreen() {
 
 	useEffect(() => {
 		if (!socket) return;
+
+		// Handle device status updates (including weight, ingredient, status)
 		const onStatus = (data) => {
+			console.log("DevicesScreen - deviceStatus received:", data);
 			setDevices((prev) =>
 				prev.map((d) =>
 					d.rackId === data.deviceId
-						? { ...d, isOnline: data.isOnline, lastSeen: data.lastSeen }
+						? {
+								...d,
+								isOnline: data.isOnline ?? d.isOnline,
+								lastSeen: data.lastSeen ?? d.lastSeen,
+								// Update real-time data
+								lastWeight: data.weight ?? d.lastWeight,
+								lastStatus: data.status ?? d.lastStatus,
+								ingredient: data.ingredient ?? d.ingredient,
+						  }
 						: d
 				)
 			);
 		};
+
+		// Handle real-time device updates (weight, status, ingredient)
+		const onUpdate = (data) => {
+			console.log("DevicesScreen - update received:", data);
+			setDevices((prev) =>
+				prev.map((d) =>
+					d.rackId === data.deviceId
+						? {
+								...d,
+								isOnline: data.isOnline ?? d.isOnline,
+								lastSeen: data.lastSeen ?? d.lastSeen,
+								// Update real-time data
+								lastWeight: data.weight ?? d.lastWeight,
+								lastStatus: data.status ?? d.lastStatus,
+								ingredient: data.ingredient ?? d.ingredient,
+						  }
+						: d
+				)
+			);
+		};
+
 		const onAdded = () => load();
 		const onDeleted = (data) => {
 			console.log("Device deleted via socket:", data);
@@ -61,18 +93,61 @@ export default function DevicesScreen() {
 				)
 			);
 		};
+
 		socket.on("deviceStatus", onStatus);
+		socket.on("update", onUpdate);
 		socket.on("deviceAdded", onAdded);
 		socket.on("deviceDeleted", onDeleted);
+
+		// Test event listener
+		socket.on("test", (data) => {
+			console.log("DevicesScreen - Test response received:", data);
+		});
+
 		return () => {
 			socket.off("deviceStatus", onStatus);
+			socket.off("update", onUpdate);
 			socket.off("deviceAdded", onAdded);
 			socket.off("deviceDeleted", onDeleted);
+			socket.off("test");
 		};
 	}, [socket]);
 
 	return (
 		<SafeAreaView style={styles.container}>
+			{/* Debug Info - Remove in production */}
+			{/* {__DEV__ && ( */}
+			{/* <View style={styles.debugSection}>
+				<Text style={styles.debugTitle}>Debug: Devices State</Text>
+				<Text style={styles.debugText}>Total Devices: {devices.length}</Text>
+				{devices.length > 0 && (
+					<Text style={styles.debugText}>
+						First Device: {JSON.stringify(devices[0], null, 2)}
+					</Text>
+				)}
+
+				<TouchableOpacity
+					style={styles.testButton}
+					onPress={() => {
+						console.log("DevicesScreen - Testing websocket connection...");
+						console.log("Socket connected:", socket?.connected);
+						console.log("Socket ID:", socket?.id);
+						console.log("Current devices:", devices);
+
+						// Test by emitting a test event for the first device
+						if (socket && devices.length > 0) {
+							const firstDevice = devices[0];
+							socket.emit("test", {
+								deviceId: firstDevice.rackId || firstDevice._id,
+								message: "Test from DevicesScreen",
+							});
+						}
+					}}
+				>
+					<Text style={styles.testButtonText}>Test WebSocket</Text>
+				</TouchableOpacity>
+			</View> */}
+			{/* )} */}
 			<View style={styles.header}>
 				<Text style={styles.title}>Devices</Text>
 			</View>
@@ -140,4 +215,37 @@ const styles = StyleSheet.create({
 	title: { fontSize: 22, fontWeight: "700" },
 	text: { color: "#6b7280" },
 	meta: { color: "#6b7280", fontSize: 12 },
+
+	// Debug styles
+	debugSection: {
+		backgroundColor: "#fef3c7",
+		padding: 12,
+		borderRadius: 8,
+		marginBottom: 16,
+		borderWidth: 1,
+		borderColor: "#f59e0b",
+	},
+	debugTitle: {
+		fontSize: 12,
+		fontWeight: "700",
+		color: "#92400e",
+		marginBottom: 4,
+	},
+	debugText: {
+		fontSize: 10,
+		color: "#92400e",
+		fontFamily: "monospace",
+	},
+	testButton: {
+		backgroundColor: "#6366f1",
+		padding: 8,
+		borderRadius: 6,
+		marginTop: 8,
+		alignItems: "center",
+	},
+	testButtonText: {
+		fontSize: 10,
+		fontWeight: "600",
+		color: "#fff",
+	},
 });

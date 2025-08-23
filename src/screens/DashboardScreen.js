@@ -236,7 +236,7 @@ export default function DashboardScreen() {
 									command: data.command,
 									response: data.response,
 									timestamp: data.timestamp,
-									success: data.success,
+									success: true, // Assume success since we removed the field
 								},
 						  }
 						: device
@@ -256,7 +256,7 @@ export default function DashboardScreen() {
 								...device,
 								commandStatus: {
 									command: data.command,
-									success: data.success,
+									success: true, // Assume success since we removed the field
 									error: data.error,
 									timestamp: new Date(),
 								},
@@ -267,7 +267,7 @@ export default function DashboardScreen() {
 		};
 
 		const onDeviceRegistered = (data) => {
-			if (!data || !data.success) return;
+			if (!data) return;
 			console.log("Device registered successfully:", data);
 
 			// Reload devices to get the newly registered device

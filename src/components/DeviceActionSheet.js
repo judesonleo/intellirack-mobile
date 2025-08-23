@@ -43,6 +43,16 @@ export default function DeviceActionSheet({
 	const [loadingStates, setLoadingStates] = useState({});
 	const [commandResponses, setCommandResponses] = useState({});
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+	// NEW: State to track real-time device data
+	const [realTimeData, setRealTimeData] = useState({
+		weight: null,
+		status: null,
+		ingredient: null,
+		lastSeen: null,
+		isOnline: true,
+	});
+
 	const { sendCommand, socket } = useSocket();
 
 	useEffect(() => {
@@ -61,6 +71,15 @@ export default function DeviceActionSheet({
 				mqttPublishInterval: device.settings?.mqttPublishInterval || 5000,
 				calibrationFactor: device.settings?.calibrationFactor || 204.99,
 			});
+
+			// Initialize real-time data with current device data
+			setRealTimeData({
+				weight: device.lastWeight,
+				status: device.lastStatus,
+				ingredient: device.ingredient,
+				lastSeen: device.lastSeen,
+				isOnline: device.isOnline,
+			});
 		}
 	}, [device]);
 
@@ -69,96 +88,96 @@ export default function DeviceActionSheet({
 
 		// Listen for command responses
 		const onCommandResponse = (data) => {
+			console.log("DeviceActionSheet - Command response received:", data);
+
 			if (data.deviceId === (device?.rackId || device?._id)) {
+				// Extract command from various possible fields
+				const command = data.command || data.response || data.type || "unknown";
+
 				setCommandResponses((prev) => ({
 					...prev,
-					[data.command]: {
-						success: data.success,
-						message: data.message,
+					[command]: {
+						success: true, // Assume success since we removed the field
+						message: data.message || data.response || "Command completed",
 						timestamp: Date.now(),
 					},
 				}));
 
-				// Clear loading state
+				// Clear loading state for the command
 				setLoadingStates((prev) => ({
 					...prev,
-					[data.command]: false,
+					[command]: false,
 				}));
 
-				// Show success/error feedback
-				if (data.success) {
-					Alert.alert(
-						"Success",
-						data.message || "Command executed successfully"
-					);
-				} else {
-					Alert.alert("Error", data.message || "Command failed");
-				}
+				// Show success feedback (no more duplicate popups)
+				const message = data.message || data.response || "Command completed";
+				Alert.alert("Success", message);
 			}
 		};
 
 		// Listen for command sent confirmations
 		const onCommandSent = (data) => {
+			console.log("DeviceActionSheet - Command sent confirmation:", data);
+
 			if (data.deviceId === (device?.rackId || device?._id)) {
-				if (data.success) {
-					console.log(`Command ${data.command} sent successfully`);
-				} else {
-					console.error(`Command ${data.command} failed to send:`, data.error);
-					Alert.alert("Error", `Failed to send command: ${data.error}`);
-					setLoadingStates((prev) => ({
-						...prev,
-						[data.command]: false,
-					}));
-				}
+				// Extract command from various possible fields
+				const command = data.command || data.type || "unknown";
+
+				// Assume success since we removed the success field
+				console.log(`Command ${command} sent successfully`);
 			}
 		};
 
 		// Listen for NFC events
 		const onNfcEvent = (data) => {
+			console.log("DeviceActionSheet - NFC event received:", data);
+
 			if (data.deviceId === (device?.rackId || device?._id)) {
-				console.log("NFC event received:", data);
+				// Extract event type from various possible fields
+				const eventType = data.type || data.command || "unknown";
+				const message =
+					data.message || data.response || "NFC operation completed";
 
 				// Handle different NFC event types
-				switch (data.type) {
+				switch (eventType) {
 					case "read":
 						Alert.alert(
 							"NFC Tag Read",
 							`Ingredient: ${data.ingredient || "Unknown"}\nUID: ${
 								data.tagUID || "N/A"
-							}`
+							}\n${message}`
 						);
 						break;
 					case "write":
-						Alert.alert(
-							"NFC Write",
-							data.response || "Tag written successfully"
-						);
+						Alert.alert("NFC Write", message);
 						break;
 					case "clear":
-						Alert.alert(
-							"NFC Clear",
-							data.response || "Tag cleared successfully"
-						);
+						Alert.alert("NFC Clear", message);
 						break;
 					case "format":
-						Alert.alert(
-							"NFC Format",
-							data.response || "Tag formatted successfully"
-						);
+						Alert.alert("NFC Format", message);
 						break;
 					case "removed":
 						Alert.alert("NFC Tag Removed", "Tag is no longer present");
 						break;
 					default:
-						console.log("Unknown NFC event type:", data.type);
+						console.log("Unknown NFC event type:", eventType);
+						Alert.alert("NFC Event", message);
 				}
 			}
 		};
 
 		// Listen for device status changes
 		const onDeviceStatus = (data) => {
+			console.log("DeviceActionSheet - Device status received (ALL):", data);
+			console.log("Current device ID:", device?.rackId || device?._id);
+			console.log("Event device ID:", data.deviceId);
+
 			if (data.deviceId === (device?.rackId || device?._id)) {
-				console.log("Device status update:", data);
+				console.log(
+					"DeviceActionSheet - Device status received (MATCHED):",
+					data
+				);
 
 				// Update device status in real-time
 				if (data.isOnline !== undefined) {
@@ -169,6 +188,60 @@ export default function DeviceActionSheet({
 						}`
 					);
 				}
+
+				// Update real-time data
+				setRealTimeData((prev) => {
+					const newData = {
+						...prev,
+						weight: data.weight ?? prev.weight,
+						status: data.status ?? prev.status,
+						ingredient: data.ingredient ?? prev.ingredient,
+						lastSeen: data.lastSeen ?? prev.lastSeen,
+						isOnline: data.isOnline ?? prev.isOnline,
+					};
+					console.log(
+						"DeviceActionSheet - Updating realTimeData from status:",
+						newData
+					);
+					return newData;
+				});
+			}
+		};
+
+		// NEW: Listen for real-time device updates (weight, status, ingredient)
+		const onDeviceUpdate = (data) => {
+			console.log("DeviceActionSheet - Device update received (ALL):", data);
+			console.log("Current device ID:", device?.rackId || device?._id);
+			console.log("Event device ID:", data.deviceId);
+
+			if (data.deviceId === (device?.rackId || device?._id)) {
+				console.log(
+					"DeviceActionSheet - Device update received (MATCHED):",
+					data
+				);
+
+				// Update the device object with real-time data
+				// This will trigger a re-render with updated weight/status/ingredient
+				if (
+					data.weight !== undefined ||
+					data.status !== undefined ||
+					data.ingredient !== undefined
+				) {
+					// Update the device prop directly to reflect real-time changes
+					// Note: In React Native, we need to trigger a re-render by updating local state
+					setRealTimeData((prev) => {
+						const newData = {
+							...prev,
+							weight: data.weight ?? prev.weight,
+							status: data.status ?? prev.status,
+							ingredient: data.ingredient ?? prev.ingredient,
+							lastSeen: data.lastSeen ?? prev.lastSeen,
+							isOnline: data.isOnline ?? prev.isOnline,
+						};
+						console.log("DeviceActionSheet - Updating realTimeData:", newData);
+						return newData;
+					});
+				}
 			}
 		};
 
@@ -176,12 +249,21 @@ export default function DeviceActionSheet({
 		socket.on("commandSent", onCommandSent);
 		socket.on("nfcEvent", onNfcEvent);
 		socket.on("deviceStatus", onDeviceStatus);
+		socket.on("update", onDeviceUpdate);
+
+		// Test event listener
+		socket.on("test", (data) => {
+			console.log("DeviceActionSheet - Test response received:", data);
+			Alert.alert("WebSocket Test", `Response: ${data.message}`);
+		});
 
 		return () => {
 			socket.off("commandResponse", onCommandResponse);
 			socket.off("commandSent", onCommandSent);
 			socket.off("nfcEvent", onNfcEvent);
 			socket.off("deviceStatus", onDeviceStatus);
+			socket.off("update", onDeviceUpdate);
+			socket.off("test");
 		};
 	}, [socket, device]);
 
@@ -343,8 +425,9 @@ export default function DeviceActionSheet({
 	};
 
 	const getStatusText = () => {
-		if (!device?.lastWeight || device.lastWeight < 50) return "EMPTY";
-		if (device.lastWeight < 200) return "LOW";
+		const currentWeight = realTimeData.weight ?? device?.lastWeight;
+		if (!currentWeight || currentWeight < 50) return "EMPTY";
+		if (currentWeight < 200) return "LOW";
 		return "GOOD";
 	};
 
@@ -363,22 +446,77 @@ export default function DeviceActionSheet({
 
 	const renderOverview = () => (
 		<View style={styles.tabContent}>
+			{/* Debug Info - Remove in production */}
+			{/* {__DEV__ && (
+				<View style={styles.debugSection}>
+					<Text style={styles.debugTitle}>Debug: Real-time Data</Text>
+					<Text style={styles.debugText}>
+						{JSON.stringify(realTimeData, null, 2)}
+					</Text>
+
+					<Text style={styles.debugTitle}>Command Responses:</Text>
+					<Text style={styles.debugText}>
+						{JSON.stringify(commandResponses, null, 2)}
+					</Text>
+
+					<Text style={styles.debugTitle}>Loading States:</Text>
+					<Text style={styles.debugText}>
+						{JSON.stringify(loadingStates, null, 2)}
+					</Text>
+
+					<View style={styles.connectionStatus}>
+						<Text style={styles.connectionStatusText}>
+							Socket Connected: {socket?.connected ? "Yes" : "No"}
+						</Text>
+						<Text style={styles.connectionStatusText}>
+							Socket ID: {socket?.id || "None"}
+						</Text>
+						<Text style={styles.connectionStatusText}>
+							Device ID: {device?.rackId || device?._id || "None"}
+						</Text>
+					</View>
+
+					<TouchableOpacity
+						style={styles.testButton}
+						onPress={() => {
+							console.log("Testing websocket connection...");
+							console.log("Socket connected:", socket?.connected);
+							console.log("Socket ID:", socket?.id);
+
+							// Test by emitting a test event
+							if (socket) {
+								socket.emit("test", {
+									deviceId: device?.rackId || device?._id,
+									message: "Test from mobile app",
+								});
+							}
+						}}
+					>
+						<Text style={styles.testButtonText}>Test WebSocket</Text>
+					</TouchableOpacity>
+				</View>
+			)} */}
+
 			<View style={styles.statusGrid}>
 				<View style={styles.statusItem}>
 					<Text style={styles.statusLabel}>Status</Text>
 					<Text
 						style={[
 							styles.statusValue,
-							{ color: device?.isOnline ? "#10b981" : "#ef4444" },
+							{ color: realTimeData.isOnline ? "#10b981" : "#ef4444" },
 						]}
 					>
-						{device?.isOnline ? "ONLINE" : "OFFLINE"}
+						{realTimeData.isOnline ? "ONLINE" : "OFFLINE"}
 					</Text>
 				</View>
 				<View style={styles.statusItem}>
 					<Text style={styles.statusLabel}>Weight</Text>
 					<Text style={styles.statusValue}>
-						{Math.max(0, Math.round(device?.lastWeight || 0))}g
+						{Math.max(
+							0,
+							Math.round(realTimeData.weight ?? (device?.lastWeight || 0))
+						)}
+						g
 					</Text>
 				</View>
 				<View style={styles.statusItem}>
@@ -397,11 +535,13 @@ export default function DeviceActionSheet({
 					<View
 						style={[
 							styles.statusBadge,
-							{ backgroundColor: device?.isOnline ? "#10b981" : "#6b7280" },
+							{
+								backgroundColor: realTimeData.isOnline ? "#10b981" : "#6b7280",
+							},
 						]}
 					>
 						<Text style={styles.statusBadgeText}>
-							{device?.isOnline ? "Online" : "Offline"}
+							{realTimeData.isOnline ? "Online" : "Offline"}
 						</Text>
 					</View>
 				</View>
@@ -426,7 +566,9 @@ export default function DeviceActionSheet({
 				<View style={styles.infoRow}>
 					<Text style={styles.infoLabel}>Last Updated:</Text>
 					<Text style={styles.infoValue}>
-						{device?.lastSeen
+						{realTimeData.lastSeen
+							? new Date(realTimeData.lastSeen).toLocaleString()
+							: device?.lastSeen
 							? new Date(device.lastSeen).toLocaleString()
 							: "Never"}
 					</Text>
@@ -732,16 +874,18 @@ export default function DeviceActionSheet({
 					<Text
 						style={[
 							styles.statusValue,
-							{ color: device?.isOnline ? "#10b981" : "#ef4444" },
+							{ color: realTimeData.isOnline ? "#10b981" : "#ef4444" },
 						]}
 					>
-						{device?.isOnline ? "Connected" : "Disconnected"}
+						{realTimeData.isOnline ? "Connected" : "Disconnected"}
 					</Text>
 				</View>
 				<View style={styles.statusRow}>
 					<Text style={styles.statusLabel}>Last Heartbeat:</Text>
 					<Text style={styles.statusValue}>
-						{device?.lastSeen
+						{realTimeData.lastSeen
+							? new Date(realTimeData.lastSeen).toLocaleString()
+							: device?.lastSeen
 							? new Date(device.lastSeen).toLocaleString()
 							: "Never"}
 					</Text>
@@ -1449,6 +1593,52 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		fontWeight: "600",
 		color: "#fff",
+	},
+
+	// Debug styles
+	debugSection: {
+		backgroundColor: "#fef3c7",
+		padding: 12,
+		borderRadius: 8,
+		marginBottom: 16,
+		borderWidth: 1,
+		borderColor: "#f59e0b",
+	},
+	debugTitle: {
+		fontSize: 12,
+		fontWeight: "700",
+		color: "#92400e",
+		marginBottom: 4,
+	},
+	debugText: {
+		fontSize: 10,
+		color: "#92400e",
+		fontFamily: "monospace",
+	},
+	testButton: {
+		backgroundColor: "#6366f1",
+		padding: 8,
+		borderRadius: 6,
+		marginTop: 8,
+		alignItems: "center",
+	},
+	testButtonText: {
+		fontSize: 10,
+		fontWeight: "600",
+		color: "#fff",
+	},
+	connectionStatus: {
+		marginTop: 8,
+		padding: 8,
+		backgroundColor: "#f3f4f6",
+		borderRadius: 6,
+		borderWidth: 1,
+		borderColor: "#d1d5db",
+	},
+	connectionStatusText: {
+		fontSize: 9,
+		color: "#374151",
+		marginBottom: 2,
 	},
 
 	tabsContainer: {
