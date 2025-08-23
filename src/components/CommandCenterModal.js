@@ -192,7 +192,7 @@ export default function CommandCenter({
 							</TouchableOpacity>
 
 							{/* Divider */}
-							<View style={styles.divider} />
+							{/* <View style={styles.divider} /> */}
 
 							{/* Broadcast Commands */}
 							<Text style={styles.sectionTitle}>Broadcast Commands</Text>
@@ -221,13 +221,13 @@ export default function CommandCenter({
 								<Text style={styles.commandText}>Restart All Devices</Text>
 							</TouchableOpacity>
 
-							<TouchableOpacity
+							{/* <TouchableOpacity
 								style={styles.commandItem}
 								onPress={() => sendBroadcastCommand("config")}
 							>
 								<Ionicons name="cog" size={18} color="#6366f1" />
 								<Text style={styles.commandText}>Get All Configs</Text>
-							</TouchableOpacity>
+							</TouchableOpacity> */}
 						</BlurView>
 					</View>
 				</TouchableOpacity>
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
 		textTransform: "uppercase",
 		letterSpacing: 0.5,
 		paddingHorizontal: 16,
-		marginBottom: 8,
+		// marginBottom: 8,
 		backgroundColor: "rgba(255,255,255,0.9)",
 		paddingVertical: 8,
 	},

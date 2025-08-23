@@ -109,9 +109,44 @@ export default function DeviceActionSheet({
 					[command]: false,
 				}));
 
-				// Show success feedback (no more duplicate popups)
-				const message = data.message || data.response || "Command completed";
-				Alert.alert("Success", message);
+				// Show success feedback with enhanced messages for all NFC operations
+				let message = data.message || data.response || "Command completed";
+				let title = "Success";
+
+				// Special handling for all NFC operations
+				if (command && command.startsWith("nfc_")) {
+					const nfcType = command.replace("nfc_", "");
+					switch (nfcType) {
+						case "read":
+							if (data.ingredient) {
+								title = "NFC Tag Read";
+								message = `Ingredient: ${data.ingredient}\nUID: ${
+									data.tagUID || "N/A"
+								}\n${data.response || "Tag read successfully"}`;
+							} else {
+								title = "NFC Tag Read";
+								message = data.response || "Tag read successfully";
+							}
+							break;
+						case "write":
+							title = "NFC Write";
+							message = data.response || "Tag written successfully";
+							break;
+						case "clear":
+							title = "NFC Clear";
+							message = data.response || "Tag cleared successfully";
+							break;
+						case "format":
+							title = "NFC Format";
+							message = data.response || "Tag formatted successfully";
+							break;
+						default:
+							title = "NFC Operation";
+							message = data.response || "NFC operation completed";
+					}
+				}
+
+				Alert.alert(title, message);
 			}
 		};
 
@@ -135,35 +170,12 @@ export default function DeviceActionSheet({
 			if (data.deviceId === (device?.rackId || device?._id)) {
 				// Extract event type from various possible fields
 				const eventType = data.type || data.command || "unknown";
-				const message =
-					data.message || data.response || "NFC operation completed";
 
-				// Handle different NFC event types
-				switch (eventType) {
-					case "read":
-						Alert.alert(
-							"NFC Tag Read",
-							`Ingredient: ${data.ingredient || "Unknown"}\nUID: ${
-								data.tagUID || "N/A"
-							}\n${message}`
-						);
-						break;
-					case "write":
-						Alert.alert("NFC Write", message);
-						break;
-					case "clear":
-						Alert.alert("NFC Clear", message);
-						break;
-					case "format":
-						Alert.alert("NFC Format", message);
-						break;
-					case "removed":
-						Alert.alert("NFC Tag Removed", "Tag is no longer present");
-						break;
-					default:
-						console.log("Unknown NFC event type:", eventType);
-						Alert.alert("NFC Event", message);
-				}
+				// Don't show any alerts - command response handles all NFC operations
+				// Just log the event for debugging purposes
+				console.log(
+					`NFC ${eventType} event received, skipping alert (handled by command response)`
+				);
 			}
 		};
 
