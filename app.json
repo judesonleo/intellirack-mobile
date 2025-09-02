@@ -1,40 +1,40 @@
 {
-  "expo": {
-    "name": "IntelliRack - Smart Kitchen Rack Automation",
-    "slug": "intellirack",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "icon": "./assets/intellirack.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/intellirack.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "com.judesonleo.intellirack",
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/intellirack.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "package": "com.judesonleo.intellirack"
-    },
-    "web": {
-      "favicon": "./assets/intellirack.png"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "a103c268-d325-4767-8a50-4731f1416b08"
-      }
-    },
-    "owner": "judeson_leo"
-  }
+	"expo": {
+		"name": "IntelliRack - Smart Kitchen Rack Automation",
+		"slug": "intellirack",
+		"version": "1.1.0",
+		"orientation": "portrait",
+		"icon": "./assets/intellirack.png",
+		"userInterfaceStyle": "light",
+		"newArchEnabled": true,
+		"splash": {
+			"image": "./assets/intellirack.png",
+			"resizeMode": "contain",
+			"backgroundColor": "#ffffff"
+		},
+		"ios": {
+			"supportsTablet": true,
+			"bundleIdentifier": "com.judesonleo.intellirack",
+			"infoPlist": {
+				"ITSAppUsesNonExemptEncryption": false
+			}
+		},
+		"android": {
+			"adaptiveIcon": {
+				"foregroundImage": "./assets/intellirack.png",
+				"backgroundColor": "#ffffff"
+			},
+			"edgeToEdgeEnabled": true,
+			"package": "com.judesonleo.intellirack"
+		},
+		"web": {
+			"favicon": "./assets/intellirack.png"
+		},
+		"extra": {
+			"eas": {
+				"projectId": "a103c268-d325-4767-8a50-4731f1416b08"
+			}
+		},
+		"owner": "judeson_leo"
+	}
 }
