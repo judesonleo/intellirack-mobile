@@ -28,8 +28,25 @@ export function AuthProvider({ children }) {
 
 	useEffect(() => {
 		(async () => {
+			console.log("🔐 AuthContext - initializing...");
 			const existing = await apiGetUser();
-			if (existing) setUser(existing);
+			if (existing) {
+				console.log("🔐 AuthContext - found existing user:", existing.email);
+				// Verify the token is still valid by calling refreshUser
+				const refreshed = await apiRefreshUser();
+				if (refreshed) {
+					console.log(
+						"🔐 AuthContext - token validated, user set:",
+						refreshed.email
+					);
+					setUser(refreshed);
+				} else {
+					console.log("🔐 AuthContext - token invalid, clearing user");
+					setUser(null);
+				}
+			} else {
+				console.log("🔐 AuthContext - no existing user found");
+			}
 			setLoading(false);
 		})();
 	}, []);

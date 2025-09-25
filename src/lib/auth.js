@@ -16,10 +16,12 @@ export async function login(email, password) {
 }
 
 export async function register(firstName, lastName, email, password) {
+	const name = `${firstName} ${lastName}`.trim();
+
 	const res = await fetch(`${API_URL}/auth/register`, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({ firstName, lastName, email, password }),
+		body: JSON.stringify({ name, email, password }),
 	});
 	if (!res.ok)
 		throw new Error((await safeJson(res))?.error || "Register failed");
@@ -30,14 +32,37 @@ export async function refreshUser() {
 	try {
 		const token = await getToken();
 		if (!token) return null;
+
+		console.log(
+			"🔄 refreshUser - attempting with token:",
+			token ? token.substring(0, 30) + "..." : "none"
+		);
+
 		const res = await fetch(`${API_URL}/auth/me`, {
 			headers: { Authorization: `Bearer ${token}` },
 		});
-		if (!res.ok) return null;
+
+		console.log("🔄 refreshUser - response:", {
+			status: res.status,
+			ok: res.ok,
+			statusText: res.statusText,
+		});
+
+		if (!res.ok) {
+			console.log("🔄 refreshUser - failed, clearing stored auth data");
+			// Clear invalid token and user data
+			await logout();
+			return null;
+		}
+
 		const userData = await res.json();
 		await AsyncStorage.setItem("user", JSON.stringify(userData));
+		console.log("🔄 refreshUser - success:", userData.email);
 		return userData;
 	} catch (e) {
+		console.log("🔄 refreshUser - error:", e.message);
+		// Clear auth data on error
+		await logout();
 		return null;
 	}
 }
@@ -79,7 +104,30 @@ export async function fetchWithAuth(url, options = {}) {
 		...(options.headers || {}),
 		...(token ? { Authorization: `Bearer ${token}` } : {}),
 	};
-	return fetch(url, { ...options, headers });
+
+	console.log("🌐 fetchWithAuth:", {
+		url,
+		hasToken: !!token,
+		tokenPreview: token ? token.substring(0, 20) + "..." : "none",
+		method: options.method || "GET",
+	});
+
+	try {
+		const response = await fetch(url, { ...options, headers });
+		console.log("📡 fetchWithAuth response:", {
+			url,
+			status: response.status,
+			statusText: response.statusText,
+			ok: response.ok,
+		});
+		return response;
+	} catch (error) {
+		console.error("❌ fetchWithAuth error:", {
+			url,
+			error: error.message,
+		});
+		throw error;
+	}
 }
 
 async function safeJson(res) {

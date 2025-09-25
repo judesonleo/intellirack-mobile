@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -84,13 +84,28 @@ export default function DeviceActionSheet({
 	}, [device]);
 
 	useEffect(() => {
-		if (!socket) return;
+		if (!socket || !device) return;
 
-		// Listen for command responses
-		const onCommandResponse = (data) => {
+		const deviceIdentifier = device?.rackId || device?._id;
+		if (!deviceIdentifier) {
+			console.warn("DeviceActionSheet - No device identifier available");
+			return;
+		}
+
+		// Listen for command responses - UNIQUE HANDLER
+		const onCommandResponseActionSheet = (data) => {
 			console.log("DeviceActionSheet - Command response received:", data);
+			console.log(
+				`DeviceActionSheet - Target device: ${deviceIdentifier}, Response device: ${data.deviceId}`
+			);
 
-			if (data.deviceId === (device?.rackId || device?._id)) {
+			// Strict device ID matching
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
+				console.log(
+					`DeviceActionSheet [${deviceIdentifier}] - Processing command response:`,
+					data
+				);
+
 				// Extract command from various possible fields
 				const command = data.command || data.response || data.type || "unknown";
 
@@ -147,53 +162,70 @@ export default function DeviceActionSheet({
 				}
 
 				Alert.alert(title, message);
+			} else if (data.deviceId) {
+				// Log when we receive command responses for other devices (for debugging)
+				console.log(
+					`DeviceActionSheet [${deviceIdentifier}] - Ignoring command response for device: ${data.deviceId}`
+				);
 			}
 		};
 
-		// Listen for command sent confirmations
-		const onCommandSent = (data) => {
+		// Listen for command sent confirmations - UNIQUE HANDLER
+		const onCommandSentActionSheet = (data) => {
 			console.log("DeviceActionSheet - Command sent confirmation:", data);
 
-			if (data.deviceId === (device?.rackId || device?._id)) {
+			// Strict device ID matching
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
 				// Extract command from various possible fields
 				const command = data.command || data.type || "unknown";
 
 				// Assume success since we removed the success field
-				console.log(`Command ${command} sent successfully`);
+				console.log(
+					`Command ${command} sent successfully to device ${deviceIdentifier}`
+				);
+			} else if (data.deviceId) {
+				console.log(
+					`DeviceActionSheet [${deviceIdentifier}] - Ignoring command sent for device: ${data.deviceId}`
+				);
 			}
 		};
 
-		// Listen for NFC events
-		const onNfcEvent = (data) => {
+		// Listen for NFC events - UNIQUE HANDLER
+		const onNfcEventActionSheet = (data) => {
 			console.log("DeviceActionSheet - NFC event received:", data);
 
-			if (data.deviceId === (device?.rackId || device?._id)) {
+			// Strict device ID matching
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
 				// Extract event type from various possible fields
 				const eventType = data.type || data.command || "unknown";
 
 				// Don't show any alerts - command response handles all NFC operations
 				// Just log the event for debugging purposes
 				console.log(
-					`NFC ${eventType} event received, skipping alert (handled by command response)`
+					`NFC ${eventType} event received for device ${deviceIdentifier}, skipping alert (handled by command response)`
+				);
+			} else if (data.deviceId) {
+				console.log(
+					`DeviceActionSheet [${deviceIdentifier}] - Ignoring NFC event for device: ${data.deviceId}`
 				);
 			}
 		};
 
-		// Listen for device status changes
-		const onDeviceStatus = (data) => {
+		// Listen for device status changes - UNIQUE HANDLER
+		const onDeviceStatusActionSheet = (data) => {
 			console.log("DeviceActionSheet - Device status received (ALL):", data);
-			console.log("Current device ID:", device?.rackId || device?._id);
+			console.log("Current device ID:", deviceIdentifier);
 			console.log("Event device ID:", data.deviceId);
 
-			if (data.deviceId === (device?.rackId || device?._id)) {
+			// Strict device ID matching
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
 				console.log(
-					"DeviceActionSheet - Device status received (MATCHED):",
+					`DeviceActionSheet [${deviceIdentifier}] - Device status received (MATCHED):`,
 					data
 				);
 
 				// Update device status in real-time
 				if (data.isOnline !== undefined) {
-					// You could update a local device state here if needed
 					console.log(
 						`Device ${data.deviceId} is now ${
 							data.isOnline ? "online" : "offline"
@@ -205,30 +237,38 @@ export default function DeviceActionSheet({
 				setRealTimeData((prev) => {
 					const newData = {
 						...prev,
-						weight: data.weight ?? prev.weight,
-						status: data.status ?? prev.status,
-						ingredient: data.ingredient ?? prev.ingredient,
-						lastSeen: data.lastSeen ?? prev.lastSeen,
-						isOnline: data.isOnline ?? prev.isOnline,
+						weight: data.weight !== undefined ? data.weight : prev.weight,
+						status: data.status !== undefined ? data.status : prev.status,
+						ingredient:
+							data.ingredient !== undefined ? data.ingredient : prev.ingredient,
+						lastSeen:
+							data.lastSeen !== undefined ? data.lastSeen : prev.lastSeen,
+						isOnline:
+							data.isOnline !== undefined ? data.isOnline : prev.isOnline,
 					};
 					console.log(
-						"DeviceActionSheet - Updating realTimeData from status:",
+						`DeviceActionSheet [${deviceIdentifier}] - Updating realTimeData from status:`,
 						newData
 					);
 					return newData;
 				});
+			} else if (data.deviceId) {
+				console.log(
+					`DeviceActionSheet [${deviceIdentifier}] - Ignoring status for device: ${data.deviceId}`
+				);
 			}
 		};
 
-		// NEW: Listen for real-time device updates (weight, status, ingredient)
-		const onDeviceUpdate = (data) => {
+		// NEW: Listen for real-time device updates (weight, status, ingredient) - UNIQUE HANDLER
+		const onDeviceUpdateActionSheet = (data) => {
 			console.log("DeviceActionSheet - Device update received (ALL):", data);
-			console.log("Current device ID:", device?.rackId || device?._id);
+			console.log("Current device ID:", deviceIdentifier);
 			console.log("Event device ID:", data.deviceId);
 
-			if (data.deviceId === (device?.rackId || device?._id)) {
+			// Strict device ID matching
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
 				console.log(
-					"DeviceActionSheet - Device update received (MATCHED):",
+					`DeviceActionSheet [${deviceIdentifier}] - Device update received (MATCHED):`,
 					data
 				);
 
@@ -239,29 +279,39 @@ export default function DeviceActionSheet({
 					data.status !== undefined ||
 					data.ingredient !== undefined
 				) {
-					// Update the device prop directly to reflect real-time changes
-					// Note: In React Native, we need to trigger a re-render by updating local state
 					setRealTimeData((prev) => {
 						const newData = {
 							...prev,
-							weight: data.weight ?? prev.weight,
-							status: data.status ?? prev.status,
-							ingredient: data.ingredient ?? prev.ingredient,
-							lastSeen: data.lastSeen ?? prev.lastSeen,
-							isOnline: data.isOnline ?? prev.isOnline,
+							weight: data.weight !== undefined ? data.weight : prev.weight,
+							status: data.status !== undefined ? data.status : prev.status,
+							ingredient:
+								data.ingredient !== undefined
+									? data.ingredient
+									: prev.ingredient,
+							lastSeen:
+								data.lastSeen !== undefined ? data.lastSeen : prev.lastSeen,
+							isOnline:
+								data.isOnline !== undefined ? data.isOnline : prev.isOnline,
 						};
-						console.log("DeviceActionSheet - Updating realTimeData:", newData);
+						console.log(
+							`DeviceActionSheet [${deviceIdentifier}] - Updating realTimeData:`,
+							newData
+						);
 						return newData;
 					});
 				}
+			} else if (data.deviceId) {
+				console.log(
+					`DeviceActionSheet [${deviceIdentifier}] - Ignoring update for device: ${data.deviceId}`
+				);
 			}
 		};
 
-		socket.on("commandResponse", onCommandResponse);
-		socket.on("commandSent", onCommandSent);
-		socket.on("nfcEvent", onNfcEvent);
-		socket.on("deviceStatus", onDeviceStatus);
-		socket.on("update", onDeviceUpdate);
+		socket.on("commandResponse", onCommandResponseActionSheet);
+		socket.on("commandSent", onCommandSentActionSheet);
+		socket.on("nfcEvent", onNfcEventActionSheet);
+		socket.on("deviceStatus", onDeviceStatusActionSheet);
+		socket.on("update", onDeviceUpdateActionSheet);
 
 		// Test event listener
 		socket.on("test", (data) => {
@@ -270,11 +320,11 @@ export default function DeviceActionSheet({
 		});
 
 		return () => {
-			socket.off("commandResponse", onCommandResponse);
-			socket.off("commandSent", onCommandSent);
-			socket.off("nfcEvent", onNfcEvent);
-			socket.off("deviceStatus", onDeviceStatus);
-			socket.off("update", onDeviceUpdate);
+			socket.off("commandResponse", onCommandResponseActionSheet);
+			socket.off("commandSent", onCommandSentActionSheet);
+			socket.off("nfcEvent", onNfcEventActionSheet);
+			socket.off("deviceStatus", onDeviceStatusActionSheet);
+			socket.off("update", onDeviceUpdateActionSheet);
 			socket.off("test");
 		};
 	}, [socket, device]);
@@ -754,7 +804,20 @@ export default function DeviceActionSheet({
 						styles.actionButton,
 						loadingStates.calibrate && styles.actionButtonLoading,
 					]}
-					onPress={() => send("calibrate")}
+					onPress={() => {
+						Alert.alert(
+							"Calibrate Scale",
+							"This will start automatic calibration using a 100g known weight.\n\n⚠️ IMPORTANT:\n• Have exactly 100g weight ready\n• Remove all items from scale first\n• Place 100g weight when prompted\n• Do not touch during calibration\n• Negative calibration factors are normal\n\nContinue?",
+							[
+								{ text: "Cancel", style: "cancel" },
+								{
+									text: "Start Calibration",
+									onPress: () => send("calibrate"),
+									style: "destructive",
+								},
+							]
+						);
+					}}
 					disabled={loadingStates.calibrate}
 				>
 					{loadingStates.calibrate ? (

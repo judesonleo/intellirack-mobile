@@ -27,6 +27,7 @@ import ShoppingListScreen from "./src/screens/ShoppingListScreen";
 import ModernTabBar from "./src/navigation/ModernTabBar";
 import CommandCenter from "./src/components/CommandCenterModal";
 import { Ionicons } from "@expo/vector-icons";
+import { SERVER_URL } from "./src/config";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -40,10 +41,19 @@ function HealthGate({ children }) {
 	}, []);
 
 	async function checkHealth() {
+		setLoading(true);
 		try {
-			const res = await fetch("https://intellibackend.judesonleo.dev/health");
+			console.log(
+				"🔍 HealthGate - checking server health at:",
+				`${SERVER_URL}/health`
+			);
+			const res = await fetch(`${SERVER_URL}/health`, {
+				timeout: 10000, // 10 second timeout
+			});
+			console.log("🔍 HealthGate - server response:", res.ok, res.status);
 			setHealth(res.ok);
 		} catch (e) {
+			console.log("❌ HealthGate - server connection failed:", e.message);
 			setHealth(false);
 		} finally {
 			setLoading(false);

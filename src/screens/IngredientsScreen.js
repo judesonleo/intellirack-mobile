@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -50,7 +50,7 @@ export default function IngredientsScreen() {
 	useEffect(() => {
 		if (!socket) return;
 
-		const onUpdate = (data) => {
+		const onUpdateIngredientsScreen = (data) => {
 			if (!data || !data.deviceId) return;
 			console.log("Ingredient update via WebSocket:", data);
 
@@ -70,7 +70,7 @@ export default function IngredientsScreen() {
 			);
 		};
 
-		const onDeviceStatus = (data) => {
+		const onDeviceStatusIngredientsScreen = (data) => {
 			if (!data || !data.deviceId) return;
 			console.log("Device status update for ingredients:", data);
 
@@ -88,8 +88,8 @@ export default function IngredientsScreen() {
 			);
 		};
 
-		// NFC and Command events for ingredients
-		const onNfcEvent = (data) => {
+		// NFC and Command events for ingredients - UNIQUE HANDLERS
+		const onNfcEventIngredientsScreen = (data) => {
 			if (!data || !data.deviceId) return;
 			console.log("NFC event for ingredients:", data);
 
@@ -110,7 +110,7 @@ export default function IngredientsScreen() {
 			}
 		};
 
-		const onCommandResponse = (data) => {
+		const onCommandResponseIngredientsScreen = (data) => {
 			if (!data || !data.deviceId) return;
 			console.log("Command response for ingredients:", data);
 
@@ -123,16 +123,16 @@ export default function IngredientsScreen() {
 			}
 		};
 
-		socket.on("update", onUpdate);
-		socket.on("deviceStatus", onDeviceStatus);
-		socket.on("nfcEvent", onNfcEvent);
-		socket.on("commandResponse", onCommandResponse);
+		socket.on("update", onUpdateIngredientsScreen);
+		socket.on("deviceStatus", onDeviceStatusIngredientsScreen);
+		socket.on("nfcEvent", onNfcEventIngredientsScreen);
+		socket.on("commandResponse", onCommandResponseIngredientsScreen);
 
 		return () => {
-			socket.off("update", onUpdate);
-			socket.off("deviceStatus", onDeviceStatus);
-			socket.off("nfcEvent", onNfcEvent);
-			socket.off("commandResponse", onCommandResponse);
+			socket.off("update", onUpdateIngredientsScreen);
+			socket.off("deviceStatus", onDeviceStatusIngredientsScreen);
+			socket.off("nfcEvent", onNfcEventIngredientsScreen);
+			socket.off("commandResponse", onCommandResponseIngredientsScreen);
 		};
 	}, [socket]);
 

@@ -34,7 +34,27 @@ export function SocketProvider({ children }) {
 			const user = await getUser();
 			if (user && (user.id || user._id)) {
 				s.on("connect", () => {
-					s.emit("authenticate", { userId: user.id || user._id });
+					console.log(
+						`📱 Mobile WebSocket connected, authenticating user: ${
+							user.id || user._id
+						}`
+					);
+					s.emit("authenticate", {
+						userId: user.id || user._id,
+						clientType: "mobile",
+						timestamp: Date.now(),
+					});
+				});
+
+				s.on("authenticated", (data) => {
+					console.log(`📱 Mobile WebSocket authentication result:`, data);
+				});
+
+				// Debug: Log all received events
+				s.onAny((eventName, ...args) => {
+					if (["update", "deviceStatus"].includes(eventName)) {
+						console.log(`📱 Mobile received ${eventName}:`, args[0]);
+					}
 				});
 			}
 			setSocket(s);

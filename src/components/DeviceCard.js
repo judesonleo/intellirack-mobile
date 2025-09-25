@@ -33,33 +33,79 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 	useEffect(() => {
 		if (!socket || !device) return;
 
-		const onDeviceUpdate = (data) => {
-			if (data.deviceId === (device?.rackId || device?._id)) {
-				console.log("DeviceCard - Device update received:", data);
+		const deviceIdentifier = device?.rackId || device?._id;
+		if (!deviceIdentifier) {
+			console.warn("DeviceCard - No device identifier available");
+			return;
+		}
 
-				setRealTimeData((prev) => ({
-					...prev,
-					weight: data.weight ?? prev.weight,
-					status: data.status ?? prev.status,
-					ingredient: data.ingredient ?? prev.ingredient,
-					lastSeen: data.lastSeen ?? prev.lastSeen,
-					isOnline: data.isOnline ?? prev.isOnline,
-				}));
+		const onDeviceUpdate = (data) => {
+			// Strict device ID matching with validation
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
+				console.log(
+					`DeviceCard [${deviceIdentifier}] - Device update received:`,
+					data
+				);
+
+				setRealTimeData((prev) => {
+					const newData = {
+						...prev,
+						weight: data.weight !== undefined ? data.weight : prev.weight,
+						status: data.status !== undefined ? data.status : prev.status,
+						ingredient:
+							data.ingredient !== undefined ? data.ingredient : prev.ingredient,
+						lastSeen:
+							data.lastSeen !== undefined ? data.lastSeen : prev.lastSeen,
+						isOnline:
+							data.isOnline !== undefined ? data.isOnline : prev.isOnline,
+					};
+
+					console.log(
+						`DeviceCard [${deviceIdentifier}] - State updated:`,
+						newData
+					);
+					return newData;
+				});
+			} else if (data.deviceId) {
+				// Log when we receive updates for other devices (for debugging)
+				console.log(
+					`DeviceCard [${deviceIdentifier}] - Ignoring update for device: ${data.deviceId}`
+				);
 			}
 		};
 
 		const onDeviceStatus = (data) => {
-			if (data.deviceId === (device?.rackId || device?._id)) {
-				console.log("DeviceCard - Device status received:", data);
+			// Strict device ID matching with validation
+			if (data.deviceId && data.deviceId === deviceIdentifier) {
+				console.log(
+					`DeviceCard [${deviceIdentifier}] - Device status received:`,
+					data
+				);
 
-				setRealTimeData((prev) => ({
-					...prev,
-					weight: data.weight ?? prev.weight,
-					status: data.status ?? prev.status,
-					ingredient: data.ingredient ?? prev.ingredient,
-					lastSeen: data.lastSeen ?? prev.lastSeen,
-					isOnline: data.isOnline ?? prev.isOnline,
-				}));
+				setRealTimeData((prev) => {
+					const newData = {
+						...prev,
+						weight: data.weight !== undefined ? data.weight : prev.weight,
+						status: data.status !== undefined ? data.status : prev.status,
+						ingredient:
+							data.ingredient !== undefined ? data.ingredient : prev.ingredient,
+						lastSeen:
+							data.lastSeen !== undefined ? data.lastSeen : prev.lastSeen,
+						isOnline:
+							data.isOnline !== undefined ? data.isOnline : prev.isOnline,
+					};
+
+					console.log(
+						`DeviceCard [${deviceIdentifier}] - Status updated:`,
+						newData
+					);
+					return newData;
+				});
+			} else if (data.deviceId) {
+				// Log when we receive status for other devices (for debugging)
+				console.log(
+					`DeviceCard [${deviceIdentifier}] - Ignoring status for device: ${data.deviceId}`
+				);
 			}
 		};
 
@@ -167,7 +213,12 @@ export default function DeviceCard({ device, onPress, isDeleting = false }) {
 					<Image source={slot} style={styles.deviceImage} resizeMode="cover" />
 				</View>
 				<View style={styles.weightSection}>
-					<Text style={styles.weightValue}>
+					<Text
+						style={styles.weightValue}
+						numberOfLines={1}
+						adjustsFontSizeToFit={true}
+						minimumFontScale={0.7}
+					>
 						{Math.max(
 							0,
 							Math.round(realTimeData.weight ?? (device?.lastWeight || 0))
@@ -273,6 +324,7 @@ const styles = StyleSheet.create({
 	imageSection: {
 		flex: 1,
 		alignItems: "center",
+		marginLeft: 12,
 	},
 	deviceImage: {
 		width: 180,
@@ -284,12 +336,15 @@ const styles = StyleSheet.create({
 	weightSection: {
 		flex: 1,
 		alignItems: "flex-end",
+		justifyContent: "center",
+		minWidth: 120,
 	},
 	weightValue: {
-		fontSize: 62,
+		fontSize: 48, // Reduced from 62 to prevent wrapping
 		fontWeight: "900",
 		color: "#6366f1",
 		marginBottom: 6,
+		textAlign: "right",
 	},
 	weightLabel: {
 		fontSize: 12,

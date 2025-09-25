@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -85,6 +85,73 @@ export default function DashboardScreen() {
 		load();
 	}, []);
 
+	// Define unique handlers OUTSIDE useEffect - Fix for Hook rules
+	const onNfcEventDashboard = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		console.log("DashboardScreen - NFC event received:", data);
+
+		// Update device with NFC status
+		setDevices((prev) =>
+			prev.map((device) =>
+				device.rackId === data.deviceId
+					? {
+							...device,
+							nfcStatus: {
+								type: data.type,
+								tagUID: data.tagUID,
+								ingredient: data.ingredient,
+								timestamp: data.timestamp,
+							},
+					  }
+					: device
+			)
+		);
+	}, []);
+
+	const onCommandResponseDashboard = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		console.log("DashboardScreen - Command response received:", data);
+
+		// Update device with command status
+		setDevices((prev) =>
+			prev.map((device) =>
+				device.rackId === data.deviceId
+					? {
+							...device,
+							lastCommand: {
+								command: data.command,
+								response: data.response,
+								timestamp: data.timestamp,
+								success: true, // Assume success since we removed the field
+							},
+					  }
+					: device
+			)
+		);
+	}, []);
+
+	const onCommandSentDashboard = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		console.log("DashboardScreen - Command sent confirmation:", data);
+
+		// Update device with command status
+		setDevices((prev) =>
+			prev.map((device) =>
+				device.rackId === data.deviceId
+					? {
+							...device,
+							commandStatus: {
+								command: data.command,
+								success: true, // Assume success since we removed the field
+								error: data.error,
+								timestamp: new Date(),
+							},
+					  }
+					: device
+			)
+		);
+	}, []);
+
 	// Socket-driven push updates for alerts and device status
 	useEffect(() => {
 		if (!socket) return;
@@ -105,8 +172,12 @@ export default function DashboardScreen() {
 
 			// Update device status in real-time like web app
 			setDevices((prev) => {
-				const updated = prev.map((device) =>
-					device.rackId === data.deviceId
+				const updated = prev.map((device) => {
+					// Check both rackId and _id for device matching
+					const isTargetDevice =
+						device.rackId === data.deviceId || device._id === data.deviceId;
+
+					return isTargetDevice
 						? {
 								...device,
 								isOnline: data.isOnline,
@@ -115,8 +186,8 @@ export default function DashboardScreen() {
 								status: data.status,
 								ingredient: data.ingredient,
 						  }
-						: device
-				);
+						: device;
+				});
 
 				// Recalculate device counts after status update
 				const deviceCounts = recalculateDeviceCounts(updated);
@@ -137,8 +208,12 @@ export default function DashboardScreen() {
 
 			// Handle general device updates (weight, status, ingredient changes)
 			setDevices((prev) =>
-				prev.map((device) =>
-					device.rackId === data.deviceId
+				prev.map((device) => {
+					// Check both rackId and _id for device matching
+					const isTargetDevice =
+						device.rackId === data.deviceId || device._id === data.deviceId;
+
+					return isTargetDevice
 						? {
 								...device,
 								isOnline: data.isOnline ?? true,
@@ -147,8 +222,8 @@ export default function DashboardScreen() {
 								status: data.status,
 								ingredient: data.ingredient,
 						  }
-						: device
-				)
+						: device;
+				})
 			);
 
 			// Also update ingredients if weight/status changed
@@ -199,73 +274,6 @@ export default function DashboardScreen() {
 			});
 		};
 
-		// NFC and Command events
-		const onNfcEvent = (data) => {
-			if (!data || !data.deviceId) return;
-			console.log("NFC event received:", data);
-
-			// Update device with NFC status
-			setDevices((prev) =>
-				prev.map((device) =>
-					device.rackId === data.deviceId
-						? {
-								...device,
-								nfcStatus: {
-									type: data.type,
-									tagUID: data.tagUID,
-									ingredient: data.ingredient,
-									timestamp: data.timestamp,
-								},
-						  }
-						: device
-				)
-			);
-		};
-
-		const onCommandResponse = (data) => {
-			if (!data || !data.deviceId) return;
-			console.log("Command response received:", data);
-
-			// Update device with command status
-			setDevices((prev) =>
-				prev.map((device) =>
-					device.rackId === data.deviceId
-						? {
-								...device,
-								lastCommand: {
-									command: data.command,
-									response: data.response,
-									timestamp: data.timestamp,
-									success: true, // Assume success since we removed the field
-								},
-						  }
-						: device
-				)
-			);
-		};
-
-		const onCommandSent = (data) => {
-			if (!data || !data.deviceId) return;
-			console.log("Command sent confirmation:", data);
-
-			// Update device with command status
-			setDevices((prev) =>
-				prev.map((device) =>
-					device.rackId === data.deviceId
-						? {
-								...device,
-								commandStatus: {
-									command: data.command,
-									success: true, // Assume success since we removed the field
-									error: data.error,
-									timestamp: new Date(),
-								},
-						  }
-						: device
-				)
-			);
-		};
-
 		const onDeviceRegistered = (data) => {
 			if (!data) return;
 			console.log("Device registered successfully:", data);
@@ -279,9 +287,9 @@ export default function DashboardScreen() {
 		socket.on("update", onUpdate); // Web app also uses this event
 		socket.on("deviceAdded", onDeviceAdded); // Device added event
 		socket.on("deviceDeleted", onDeviceDeleted); // Device deleted event
-		socket.on("nfcEvent", onNfcEvent); // NFC events
-		socket.on("commandResponse", onCommandResponse); // Command responses
-		socket.on("commandSent", onCommandSent); // Command sent confirmations
+		socket.on("nfcEvent", onNfcEventDashboard); // NFC events - UNIQUE
+		socket.on("commandResponse", onCommandResponseDashboard); // Command responses - UNIQUE
+		socket.on("commandSent", onCommandSentDashboard); // Command sent confirmations - UNIQUE
 		socket.on("deviceRegistered", onDeviceRegistered); // Device registration confirmations
 
 		return () => {
@@ -290,9 +298,9 @@ export default function DashboardScreen() {
 			socket.off("update", onUpdate);
 			socket.off("deviceAdded", onDeviceAdded);
 			socket.off("deviceDeleted", onDeviceDeleted);
-			socket.off("nfcEvent", onNfcEvent);
-			socket.off("commandResponse", onCommandResponse);
-			socket.off("commandSent", onCommandSent);
+			socket.off("nfcEvent", onNfcEventDashboard);
+			socket.off("commandResponse", onCommandResponseDashboard);
+			socket.off("commandSent", onCommandSentDashboard);
 			socket.off("deviceRegistered", onDeviceRegistered);
 		};
 	}, [socket]);

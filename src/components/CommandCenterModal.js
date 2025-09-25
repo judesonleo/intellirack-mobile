@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -26,56 +26,57 @@ export default function CommandCenter({
 	const [deviceStatus, setDeviceStatus] = useState({});
 	const { socket, sendCommand } = useSocket();
 
+	// Define unique handlers OUTSIDE useEffect - Fix for Hook rules
+	const onDeviceStatusCommandCenter = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		setDeviceStatus((prev) => ({
+			...prev,
+			[data.deviceId]: {
+				isOnline: data.isOnline,
+				lastSeen: data.lastSeen,
+				weight: data.weight,
+				status: data.status,
+			},
+		}));
+	}, []);
+
+	const onUpdateCommandCenter = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		setDeviceStatus((prev) => ({
+			...prev,
+			[data.deviceId]: {
+				...prev[data.deviceId],
+				weight: data.weight,
+				status: data.status,
+				ingredient: data.ingredient,
+			},
+		}));
+	}, []);
+
+	const onNfcEventCommandCenter = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		console.log("NFC event in command center:", data);
+	}, []);
+
+	const onCommandResponseCommandCenter = useCallback((data) => {
+		if (!data || !data.deviceId) return;
+		console.log("Command response in command center:", data);
+	}, []);
+
 	// WebSocket real-time updates
 	useEffect(() => {
 		if (!socket) return;
 
-		const onDeviceStatus = (data) => {
-			if (!data || !data.deviceId) return;
-			setDeviceStatus((prev) => ({
-				...prev,
-				[data.deviceId]: {
-					isOnline: data.isOnline,
-					lastSeen: data.lastSeen,
-					weight: data.weight,
-					status: data.status,
-				},
-			}));
-		};
-
-		const onUpdate = (data) => {
-			if (!data || !data.deviceId) return;
-			setDeviceStatus((prev) => ({
-				...prev,
-				[data.deviceId]: {
-					...prev[data.deviceId],
-					weight: data.weight,
-					status: data.status,
-					ingredient: data.ingredient,
-				},
-			}));
-		};
-
-		const onNfcEvent = (data) => {
-			if (!data || !data.deviceId) return;
-			console.log("NFC event in command center:", data);
-		};
-
-		const onCommandResponse = (data) => {
-			if (!data || !data.deviceId) return;
-			console.log("Command response in command center:", data);
-		};
-
-		socket.on("deviceStatus", onDeviceStatus);
-		socket.on("update", onUpdate);
-		socket.on("nfcEvent", onNfcEvent);
-		socket.on("commandResponse", onCommandResponse);
+		socket.on("deviceStatus", onDeviceStatusCommandCenter);
+		socket.on("update", onUpdateCommandCenter);
+		socket.on("nfcEvent", onNfcEventCommandCenter);
+		socket.on("commandResponse", onCommandResponseCommandCenter);
 
 		return () => {
-			socket.off("deviceStatus", onDeviceStatus);
-			socket.off("update", onUpdate);
-			socket.off("nfcEvent", onNfcEvent);
-			socket.off("commandResponse", onCommandResponse);
+			socket.off("deviceStatus", onDeviceStatusCommandCenter);
+			socket.off("update", onUpdateCommandCenter);
+			socket.off("nfcEvent", onNfcEventCommandCenter);
+			socket.off("commandResponse", onCommandResponseCommandCenter);
 		};
 	}, [socket]);
 

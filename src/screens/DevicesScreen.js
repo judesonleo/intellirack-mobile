@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -27,10 +27,13 @@ export default function DevicesScreen() {
 	async function load() {
 		try {
 			setLoading(true);
+			console.log("DevicesScreen - Loading devices...");
 			const data = await fetchMyDevices();
+			console.log("DevicesScreen - Received devices:", data);
+			console.log("DevicesScreen - Device count:", data?.length || 0);
 			setDevices(data || []);
 		} catch (e) {
-			// noop
+			console.error("DevicesScreen - Failed to load devices:", e);
 		} finally {
 			setLoading(false);
 		}
@@ -43,48 +46,108 @@ export default function DevicesScreen() {
 	useEffect(() => {
 		if (!socket) return;
 
-		// Handle device status updates (including weight, ingredient, status)
-		const onStatus = (data) => {
+		// Handle device status updates (including weight, ingredient, status) - UNIQUE HANDLER
+		const onStatusDevicesScreen = (data) => {
 			console.log("DevicesScreen - deviceStatus received:", data);
-			setDevices((prev) =>
-				prev.map((d) =>
-					d.rackId === data.deviceId
-						? {
-								...d,
-								isOnline: data.isOnline ?? d.isOnline,
-								lastSeen: data.lastSeen ?? d.lastSeen,
-								// Update real-time data
-								lastWeight: data.weight ?? d.lastWeight,
-								lastStatus: data.status ?? d.lastStatus,
-								ingredient: data.ingredient ?? d.ingredient,
-						  }
-						: d
-				)
+			console.log(
+				"DevicesScreen - Current devices:",
+				devices.map((d) => d.rackId)
 			);
+
+			// Ensure we have valid deviceId
+			if (!data.deviceId) {
+				console.warn("DevicesScreen - No deviceId in status update:", data);
+				return;
+			}
+
+			setDevices((prev) => {
+				const updated = prev.map((d) => {
+					// Check both rackId and _id for device matching
+					const isTargetDevice =
+						d.rackId === data.deviceId || d._id === data.deviceId;
+
+					if (isTargetDevice) {
+						console.log(
+							`DevicesScreen - Updating device ${d.rackId} with status:`,
+							data
+						);
+						return {
+							...d,
+							isOnline: data.isOnline ?? d.isOnline,
+							lastSeen: data.lastSeen ?? d.lastSeen,
+							// Update real-time data
+							lastWeight: data.weight ?? d.lastWeight,
+							lastStatus: data.status ?? d.lastStatus,
+							ingredient: data.ingredient ?? d.ingredient,
+						};
+					}
+					return d;
+				});
+
+				// Log if no device was updated
+				const wasUpdated = updated.some((d, index) => d !== prev[index]);
+				if (!wasUpdated) {
+					console.warn(
+						`DevicesScreen - No device found for ID: ${data.deviceId}`
+					);
+				}
+
+				return updated;
+			});
 		};
 
-		// Handle real-time device updates (weight, status, ingredient)
-		const onUpdate = (data) => {
+		// Handle real-time device updates (weight, status, ingredient) - UNIQUE HANDLER
+		const onUpdateDevicesScreen = (data) => {
 			console.log("DevicesScreen - update received:", data);
-			setDevices((prev) =>
-				prev.map((d) =>
-					d.rackId === data.deviceId
-						? {
-								...d,
-								isOnline: data.isOnline ?? d.isOnline,
-								lastSeen: data.lastSeen ?? d.lastSeen,
-								// Update real-time data
-								lastWeight: data.weight ?? d.lastWeight,
-								lastStatus: data.status ?? d.lastStatus,
-								ingredient: data.ingredient ?? d.ingredient,
-						  }
-						: d
-				)
+			console.log(
+				"DevicesScreen - Current devices:",
+				devices.map((d) => `${d.rackId} (_id: ${d._id})`)
 			);
+
+			// Ensure we have valid deviceId
+			if (!data.deviceId) {
+				console.warn("DevicesScreen - No deviceId in update:", data);
+				return;
+			}
+
+			setDevices((prev) => {
+				const updated = prev.map((d) => {
+					// Check both rackId and _id for device matching
+					const isTargetDevice =
+						d.rackId === data.deviceId || d._id === data.deviceId;
+
+					if (isTargetDevice) {
+						console.log(
+							`DevicesScreen - Updating device ${d.rackId} with data:`,
+							data
+						);
+						return {
+							...d,
+							isOnline: data.isOnline ?? d.isOnline,
+							lastSeen: data.lastSeen ?? d.lastSeen,
+							// Update real-time data
+							lastWeight: data.weight ?? d.lastWeight,
+							lastStatus: data.status ?? d.lastStatus,
+							ingredient: data.ingredient ?? d.ingredient,
+						};
+					}
+					return d;
+				});
+
+				// Log if no device was updated
+				const wasUpdated = updated.some((d, index) => d !== prev[index]);
+				if (!wasUpdated) {
+					console.warn(
+						`DevicesScreen - No device found for ID: ${data.deviceId}`
+					);
+				}
+
+				return updated;
+			});
 		};
 
-		const onAdded = () => load();
-		const onDeleted = (data) => {
+		const onAddedDevicesScreen = () => load();
+		const onDeletedDevicesScreen = (data) => {
 			console.log("Device deleted via socket:", data);
 			// Remove the deleted device from the local state immediately
 			setDevices((prev) =>
@@ -94,10 +157,10 @@ export default function DevicesScreen() {
 			);
 		};
 
-		socket.on("deviceStatus", onStatus);
-		socket.on("update", onUpdate);
-		socket.on("deviceAdded", onAdded);
-		socket.on("deviceDeleted", onDeleted);
+		socket.on("deviceStatus", onStatusDevicesScreen);
+		socket.on("update", onUpdateDevicesScreen);
+		socket.on("deviceAdded", onAddedDevicesScreen);
+		socket.on("deviceDeleted", onDeletedDevicesScreen);
 
 		// Test event listener
 		socket.on("test", (data) => {
@@ -105,10 +168,10 @@ export default function DevicesScreen() {
 		});
 
 		return () => {
-			socket.off("deviceStatus", onStatus);
-			socket.off("update", onUpdate);
-			socket.off("deviceAdded", onAdded);
-			socket.off("deviceDeleted", onDeleted);
+			socket.off("deviceStatus", onStatusDevicesScreen);
+			socket.off("update", onUpdateDevicesScreen);
+			socket.off("deviceAdded", onAddedDevicesScreen);
+			socket.off("deviceDeleted", onDeletedDevicesScreen);
 			socket.off("test");
 		};
 	}, [socket]);
